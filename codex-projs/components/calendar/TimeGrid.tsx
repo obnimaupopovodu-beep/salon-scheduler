@@ -1,15 +1,23 @@
 "use client";
 
-import { format, isSameDay, set } from "date-fns";
+import { addMinutes, format } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AppointmentBlock } from "@/components/calendar/AppointmentBlock";
-import { BUSINESS_END_HOUR, BUSINESS_START_HOUR, GRID_ROW_HEIGHT } from "@/lib/utils";
-import type { AppointmentWithRelations } from "@/types";
+import {
+  DEFAULT_DAY_END_TIME,
+  DEFAULT_DAY_START_TIME,
+  GRID_ROW_HEIGHT,
+  getDefaultDaySchedule,
+  timeStringToDate,
+  timeStringToMinutes
+} from "@/lib/utils";
+import type { AppointmentWithRelations, DayScheduleWithBreaks } from "@/types";
 
 interface TimeGridProps {
   selectedDate: Date;
   appointments: AppointmentWithRelations[];
+  schedule?: DayScheduleWithBreaks;
   onSelectTime: (date: Date) => void;
   onSelectAppointment: (appointment: AppointmentWithRelations) => void;
 }
@@ -17,53 +25,51 @@ interface TimeGridProps {
 export function TimeGrid({
   selectedDate,
   appointments,
+  schedule,
   onSelectTime,
   onSelectAppointment
 }: TimeGridProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const hasAutoScrolledRef = useRef(false);
   const [indicatorTop, setIndicatorTop] = useState<number>(-1);
-  const hours = useMemo(
-    () =>
-      Array.from(
-        { length: BUSINESS_END_HOUR - BUSINESS_START_HOUR + 1 },
-        (_, index) => BUSINESS_START_HOUR + index
-      ),
-    []
-  );
+  const activeSchedule = schedule ?? getDefaultDaySchedule(selectedDate);
+  const startTime = activeSchedule.start_time || DEFAULT_DAY_START_TIME;
+  const endTime = activeSchedule.end_time || DEFAULT_DAY_END_TIME;
+  const startMinutes = timeStringToMinutes(startTime);
+  const endMinutes = timeStringToMinutes(endTime);
+  const totalHours = Math.max(Math.ceil((endMinutes - startMinutes) / 60), 1);
+
+  const rows = useMemo(() => {
+    const rowStart = timeStringToDate(selectedDate, startTime);
+    return Array.from({ length: totalHours + 1 }, (_, index) => addMinutes(rowStart, index * 60));
+  }, [selectedDate, startTime, totalHours]);
 
   useEffect(() => {
     const update = () => {
       const now = new Date();
-      const currentHour = now.getHours();
-      const currentMinute = now.getMinutes();
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const beforeStart = currentMinutes < startMinutes;
+      const afterEnd = currentMinutes > endMinutes;
 
-      const beforeStart = currentHour < BUSINESS_START_HOUR;
-      const afterEnd = currentHour > BUSINESS_END_HOUR || (currentHour === BUSINESS_END_HOUR && currentMinute > 0);
       if (beforeStart || afterEnd) {
         setIndicatorTop(-1);
         return;
       }
 
-      const offsetHours = currentHour - BUSINESS_START_HOUR + currentMinute / 60;
-      setIndicatorTop(offsetHours * GRID_ROW_HEIGHT);
+      setIndicatorTop(((currentMinutes - startMinutes) / 60) * GRID_ROW_HEIGHT);
     };
 
     update();
     const interval = window.setInterval(update, 60_000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [endMinutes, startMinutes]);
 
   const showIndicator = useMemo(() => {
-    if (!isSameDay(selectedDate, new Date())) {
-      return false;
-    }
-    if (indicatorTop < 0) {
-      return false;
-    }
-    const maxTop = (BUSINESS_END_HOUR - BUSINESS_START_HOUR) * GRID_ROW_HEIGHT;
-    return indicatorTop >= 0 && indicatorTop <= maxTop;
-  }, [indicatorTop, selectedDate]);
+    const now = new Date();
+    const sameDate = now.toDateString() === selectedDate.toDateString();
+    const maxTop = totalHours * GRID_ROW_HEIGHT;
+    return sameDate && indicatorTop >= 0 && indicatorTop <= maxTop;
+  }, [indicatorTop, selectedDate, totalHours]);
 
   useEffect(() => {
     if (!containerRef.current || !showIndicator) {
@@ -90,18 +96,28 @@ export function TimeGrid({
   }, [showIndicator]);
 
   const handleGridClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!activeSchedule.is_working_day) {
+      return;
+    }
+
     const bounds = event.currentTarget.getBoundingClientRect();
     const y = event.clientY - bounds.top + event.currentTarget.scrollTop;
     const totalMinutes = Math.max(0, (y / GRID_ROW_HEIGHT) * 60);
     const rounded = Math.round(totalMinutes / 30) * 30;
-    const hoursPart = Math.floor(rounded / 60) + BUSINESS_START_HOUR;
-    const minutesPart = rounded % 60;
-    const targetDate = set(selectedDate, {
-      hours: Math.min(hoursPart, BUSINESS_END_HOUR),
-      minutes: minutesPart,
-      seconds: 0,
-      milliseconds: 0
+    const targetMinutes = Math.min(startMinutes + rounded, endMinutes);
+    const insideBreak = activeSchedule.breaks.some((scheduleBreak) => {
+      const breakStart = timeStringToMinutes(scheduleBreak.start_time);
+      const breakEnd = timeStringToMinutes(scheduleBreak.end_time);
+      return targetMinutes >= breakStart && targetMinutes < breakEnd;
     });
+
+    if (targetMinutes >= endMinutes || insideBreak) {
+      return;
+    }
+
+    const targetDate = timeStringToDate(selectedDate, `${Math.floor(targetMinutes / 60)
+      .toString()
+      .padStart(2, "0")}:${(targetMinutes % 60).toString().padStart(2, "0")}`);
 
     onSelectTime(targetDate);
   };
@@ -109,22 +125,39 @@ export function TimeGrid({
   return (
     <div
       ref={containerRef}
-      className="relative h-[calc(100dvh-190px)] overflow-y-auto rounded-[28px] bg-card scrollbar-none"
+      className="relative h-[calc(100dvh-240px)] overflow-y-auto rounded-[28px] bg-card scrollbar-none"
       onClick={handleGridClick}
     >
-      <div className="relative" style={{ height: hours.length * GRID_ROW_HEIGHT }}>
-        {hours.map((hour) => (
+      <div className="relative" style={{ height: totalHours * GRID_ROW_HEIGHT }}>
+        {rows.slice(0, -1).map((row) => (
           <div
-            key={hour}
+            key={row.toISOString()}
             className="relative flex items-start"
             style={{ height: GRID_ROW_HEIGHT }}
           >
             <div className="w-14 pt-2 text-center text-sm font-medium text-muted">
-              {format(set(selectedDate, { hours: hour, minutes: 0 }), "HH")}
+              {format(row, "HH:mm")}
             </div>
             <div className="mt-4 h-px flex-1 bg-slate-200" />
           </div>
         ))}
+
+        {activeSchedule.breaks.map((scheduleBreak) => {
+          const breakStart = timeStringToMinutes(scheduleBreak.start_time);
+          const breakEnd = timeStringToMinutes(scheduleBreak.end_time);
+          const top = ((breakStart - startMinutes) / 60) * GRID_ROW_HEIGHT;
+          const height = ((breakEnd - breakStart) / 60) * GRID_ROW_HEIGHT;
+
+          return (
+            <div
+              key={`${scheduleBreak.start_time}-${scheduleBreak.end_time}`}
+              className="pointer-events-none absolute left-14 right-3 rounded-2xl bg-slate-100/80 ring-1 ring-inset ring-slate-200"
+              style={{ top, height }}
+            >
+              <div className="px-3 py-2 text-xs font-medium text-slate-500">Перерыв</div>
+            </div>
+          );
+        })}
 
         {showIndicator ? (
           <div
@@ -142,9 +175,16 @@ export function TimeGrid({
           <AppointmentBlock
             key={appointment.id}
             appointment={appointment}
+            scheduleStartTime={startTime}
             onClick={onSelectAppointment}
           />
         ))}
+
+        {!activeSchedule.is_working_day ? (
+          <div className="absolute inset-x-14 top-8 rounded-2xl bg-slate-100 px-4 py-6 text-center text-sm text-muted">
+            Этот день отмечен как нерабочий.
+          </div>
+        ) : null}
       </div>
     </div>
   );
