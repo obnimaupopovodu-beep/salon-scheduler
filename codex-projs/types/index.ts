@@ -32,6 +32,7 @@ export interface Appointment {
   service_id: string | null;
   client_name: string;
   client_phone: string;
+  confirmation: 0 | 1;
   start_time: string;
   end_time: string;
   notes: string | null;
@@ -53,7 +54,30 @@ export interface AppointmentPayload {
   service_id: string;
   client_name: string;
   client_phone: string;
+  confirmation: 0 | 1;
   start_time: string;
   end_time: string;
   notes?: string;
+}
+
+export interface DaySchedule {
+  id?: string;
+  specialist_id: string;
+  schedule_date: string;
+  start_time: string;
+  end_time: string;
+  is_working_day: boolean;
+  created_at?: string;
+}
+
+export interface ScheduleBreak {
+  id?: string;
+  day_schedule_id?: string;
+  start_time: string;
+  end_time: string;
+  created_at?: string;
+}
+
+export interface DayScheduleWithBreaks extends DaySchedule {
+  breaks: ScheduleBreak[];
 }

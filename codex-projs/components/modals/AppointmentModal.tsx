@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { ClientAutocomplete } from "@/components/modals/ClientAutocomplete";
+import { useSupabase } from "@/components/providers/SupabaseProvider";
 import {
   getInitialTimeFromDate,
   isValidRussianPhone,
@@ -47,6 +47,7 @@ export function AppointmentModal({
   const [serviceId, setServiceId] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("+7");
+  const [confirmation, setConfirmation] = useState<0 | 1>(0);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -64,6 +65,7 @@ export function AppointmentModal({
       setServiceId(appointment.service_id ?? "");
       setClientName(appointment.client_name);
       setClientPhone(appointment.client_phone);
+      setConfirmation(appointment.confirmation ?? 0);
       setNotes(appointment.notes ?? "");
     } else {
       setTime(getInitialTimeFromDate(selectedDate));
@@ -71,6 +73,7 @@ export function AppointmentModal({
       setServiceId(serviceGroups[0]?.services[0]?.id ?? "");
       setClientName("");
       setClientPhone("+7");
+      setConfirmation(0);
       setNotes("");
     }
 
@@ -109,6 +112,7 @@ export function AppointmentModal({
       service_id: serviceId,
       client_name: clientName.trim(),
       client_phone: normalizedPhone,
+      confirmation,
       start_time: startDate.toISOString(),
       end_time: endDate.toISOString(),
       notes: notes.trim() || undefined
@@ -186,6 +190,31 @@ export function AppointmentModal({
               <span className="text-[16px] leading-none text-muted">×</span>
             </button>
           </div>
+
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium text-ink">Статус записи</p>
+            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setConfirmation(0)}
+                className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                  confirmation === 0 ? "bg-white text-amber-700 shadow-sm" : "text-muted"
+                }`}
+              >
+                Ожидание
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmation(1)}
+                className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                  confirmation === 1 ? "bg-white text-accent shadow-sm" : "text-muted"
+                }`}
+              >
+                Подтвердил
+              </button>
+            </div>
+          </div>
+
           <div className="mt-4 space-y-4">
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-ink">Время</span>

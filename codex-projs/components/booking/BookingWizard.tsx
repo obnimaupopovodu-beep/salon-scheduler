@@ -1,11 +1,12 @@
 "use client";
 
 import { format, isSameDay } from "date-fns";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { WeekSwitcher } from "@/components/calendar/WeekSwitcher";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useAppointments } from "@/hooks/useAppointments";
+import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useServices } from "@/hooks/useServices";
 import { useSpecialists } from "@/hooks/useSpecialists";
@@ -39,6 +40,16 @@ export function BookingWizard() {
     date: selectedDate,
     mode: "week"
   });
+  const { loading: schedulesLoading, getScheduleForDate } = useDaySchedules({
+    specialistId,
+    date: selectedDate,
+    mode: "week"
+  });
+  const selectedDaySchedule = getScheduleForDate(selectedDate);
+
+  useEffect(() => {
+    setSelectedTime(null);
+  }, [selectedDate, serviceId, specialistId]);
 
   const slotsForDay = useMemo(() => {
     if (!selectedService || !specialistId) {
@@ -49,8 +60,13 @@ export function BookingWizard() {
       isSameDay(new Date(appointment.start_time), selectedDate)
     );
 
-    return generateAvailableSlots(selectedDate, selectedService.duration_minutes, dayAppointments);
-  }, [appointments, selectedDate, selectedService, specialistId]);
+    return generateAvailableSlots(
+      selectedDate,
+      selectedService.duration_minutes,
+      dayAppointments,
+      selectedDaySchedule
+    );
+  }, [appointments, selectedDate, selectedDaySchedule, selectedService, specialistId]);
 
   const createBooking = async () => {
     if (!selectedService || !selectedSpecialist || !selectedTime || !name.trim()) {
@@ -73,6 +89,7 @@ export function BookingWizard() {
       service_id: selectedService.id,
       client_name: name.trim(),
       client_phone: normalizePhone(phone),
+      confirmation: 0,
       start_time: start.toISOString(),
       end_time: end.toISOString()
     });
@@ -197,11 +214,15 @@ export function BookingWizard() {
             <WeekSwitcher selectedDate={selectedDate} onSelectDate={setSelectedDate} />
           </div>
 
-          {appointmentsLoading ? (
+          {appointmentsLoading || schedulesLoading ? (
             <div className="mt-4 grid grid-cols-2 gap-3 animate-pulse">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="h-12 rounded-2xl bg-slate-100" />
               ))}
+            </div>
+          ) : !selectedDaySchedule.is_working_day ? (
+            <div className="mt-4 rounded-2xl bg-canvas px-4 py-6 text-center text-sm text-muted">
+              На выбранный день запись недоступна. Специалист не работает.
             </div>
           ) : (
             <div className="mt-4 grid grid-cols-2 gap-3">
