@@ -6,7 +6,9 @@ import { useEffect, useMemo, useState } from "react";
 import { TimeGrid } from "@/components/calendar/TimeGrid";
 import { WeekSwitcher } from "@/components/calendar/WeekSwitcher";
 import { AppointmentModal } from "@/components/modals/AppointmentModal";
+import { DayScheduleModal } from "@/components/modals/DayScheduleModal";
 import { useAppointments } from "@/hooks/useAppointments";
+import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useServices } from "@/hooks/useServices";
 import { useSpecialists } from "@/hooks/useSpecialists";
@@ -20,6 +22,7 @@ export default function AdminSchedulePage() {
   const { groupedServices, loading: servicesLoading, refetch: refetchServices } = useServices();
   const [activeSpecialistId, setActiveSpecialistId] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [modalDate, setModalDate] = useState(new Date());
   const [editingAppointment, setEditingAppointment] =
     useState<AppointmentWithRelations | null>(null);
@@ -40,6 +43,16 @@ export default function AdminSchedulePage() {
     specialistId: activeSpecialistId,
     date: selectedDate
   });
+  const {
+    loading: schedulesLoading,
+    refetch: refetchSchedules,
+    getScheduleForDate
+  } = useDaySchedules({
+    specialistId: activeSpecialistId,
+    date: selectedDate
+  });
+
+  const currentSchedule = getScheduleForDate(selectedDate);
 
   const openCreateModal = (date: Date) => {
     setModalDate(date);
@@ -119,7 +132,21 @@ export default function AdminSchedulePage() {
         </div>
       </header>
 
-      {specialistsLoading || servicesLoading || appointmentsLoading ? (
+      <button
+        type="button"
+        onClick={() => setScheduleModalOpen(true)}
+        disabled={!selectedSpecialist}
+        className="w-full rounded-[28px] bg-white px-4 py-4 text-left shadow-sm disabled:opacity-60"
+      >
+        <span className="block text-sm font-semibold text-ink">Изменить график дня</span>
+        <span className="mt-1 block text-sm text-muted">
+          {currentSchedule.is_working_day
+            ? `${currentSchedule.start_time.slice(0, 5)} - ${currentSchedule.end_time.slice(0, 5)}, перерывов: ${currentSchedule.breaks.length}`
+            : "День отмечен как нерабочий"}
+        </span>
+      </button>
+
+      {specialistsLoading || servicesLoading || appointmentsLoading || schedulesLoading ? (
         <div className="space-y-3 animate-pulse">
           <div className="h-20 rounded-[28px] bg-white" />
           <div className="h-[520px] rounded-[28px] bg-white" />
@@ -129,11 +156,17 @@ export default function AdminSchedulePage() {
           <TimeGrid
             selectedDate={selectedDate}
             appointments={appointments}
+            schedule={currentSchedule}
             onSelectTime={openCreateModal}
             onSelectAppointment={openEditModal}
           />
           <div className="sticky bottom-20">
-            <WeekSwitcher selectedDate={selectedDate} onSelectDate={setSelectedDate} />
+            <WeekSwitcher
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              onPreviousWeek={() => setSelectedDate((current) => subDays(current, 7))}
+              onNextWeek={() => setSelectedDate((current) => addDays(current, 7))}
+            />
           </div>
         </>
       )}
@@ -150,6 +183,17 @@ export default function AdminSchedulePage() {
         onSaved={() => {
           void refetch();
           void refetchServices();
+        }}
+      />
+
+      <DayScheduleModal
+        open={scheduleModalOpen}
+        selectedDate={selectedDate}
+        specialist={selectedSpecialist}
+        schedule={currentSchedule}
+        onClose={() => setScheduleModalOpen(false)}
+        onSaved={() => {
+          void refetchSchedules();
         }}
       />
     </div>

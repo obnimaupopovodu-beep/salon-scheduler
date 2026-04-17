@@ -169,3 +169,10 @@ where name = 'Брови';
 - Защита `admin`-маршрутов через `middleware.ts` и серверную проверку сессии.
 - Календарь расписания с realtime-обновлениями по таблице `appointments`.
 - Публичный трехшаговый сценарий записи на странице `/book`.
+## Schedule Update
+
+Run `supabase/migrations/20260417_schedule_and_confirmation.sql` to add:
+
+- `appointments.confirmation`
+- `day_schedules`
+- `schedule_breaks`

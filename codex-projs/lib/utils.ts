@@ -1,6 +1,7 @@
 import {
   addDays,
   addMinutes,
+  differenceInMinutes,
   endOfDay,
   endOfWeek,
   format,
@@ -14,10 +15,17 @@ import { ru } from "date-fns/locale";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-import type { Appointment, Service, ServiceCategory, ServiceGroup } from "@/types";
+import type {
+  Appointment,
+  DayScheduleWithBreaks,
+  ScheduleBreak,
+  Service,
+  ServiceCategory,
+  ServiceGroup
+} from "@/types";
 
-export const BUSINESS_START_HOUR = 9;
-export const BUSINESS_END_HOUR = 21;
+export const DEFAULT_DAY_START_TIME = "09:00";
+export const DEFAULT_DAY_END_TIME = "21:00";
 export const GRID_ROW_HEIGHT = 72;
 
 export function cn(...inputs: ClassValue[]) {
@@ -47,8 +55,16 @@ export function getDayRange(date: Date) {
   };
 }
 
+export function formatDateKey(date: Date) {
+  return format(date, "yyyy-MM-dd");
+}
+
 export function timeStringToDate(baseDate: Date, time: string) {
-  const parsed = parse(time, "HH:mm", baseDate);
+  const [rawHours, rawMinutes] = time.split(":");
+  const normalizedTime = rawHours && rawMinutes
+    ? `${rawHours.padStart(2, "0")}:${rawMinutes.padStart(2, "0")}`
+    : time;
+  const parsed = parse(normalizedTime, "HH:mm", baseDate);
   return set(baseDate, {
     hours: parsed.getHours(),
     minutes: parsed.getMinutes(),
@@ -78,12 +94,40 @@ export function buildServiceGroups(categories: ServiceCategory[], services: Serv
   }));
 }
 
-export function getAppointmentLayout(appointment: Appointment) {
+export function timeStringToMinutes(time: string) {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+export function minutesToTimeString(totalMinutes: number) {
+  const hours = Math.floor(totalMinutes / 60)
+    .toString()
+    .padStart(2, "0");
+  const minutes = (totalMinutes % 60).toString().padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+export function getDefaultDaySchedule(date: Date, specialistId = ""): DayScheduleWithBreaks {
+  return {
+    specialist_id: specialistId,
+    schedule_date: formatDateKey(date),
+    start_time: DEFAULT_DAY_START_TIME,
+    end_time: DEFAULT_DAY_END_TIME,
+    is_working_day: true,
+    breaks: []
+  };
+}
+
+export function getAppointmentLayout(
+  appointment: Appointment,
+  scheduleStartTime = DEFAULT_DAY_START_TIME
+) {
   const start = new Date(appointment.start_time);
   const end = new Date(appointment.end_time);
-  const minutesFromStart =
-    (start.getHours() - BUSINESS_START_HOUR) * 60 + start.getMinutes();
-  const duration = (end.getTime() - start.getTime()) / 60000;
+  const dayStartMinutes = timeStringToMinutes(scheduleStartTime);
+  const appointmentStartMinutes = start.getHours() * 60 + start.getMinutes();
+  const minutesFromStart = appointmentStartMinutes - dayStartMinutes;
+  const duration = differenceInMinutes(end, start);
 
   return {
     top: (minutesFromStart / 60) * GRID_ROW_HEIGHT,
@@ -91,25 +135,27 @@ export function getAppointmentLayout(appointment: Appointment) {
   };
 }
 
+export function isBreakOverlap(a: ScheduleBreak, b: ScheduleBreak) {
+  return timeStringToMinutes(a.start_time) < timeStringToMinutes(b.end_time)
+    && timeStringToMinutes(a.end_time) > timeStringToMinutes(b.start_time);
+}
+
 export function generateAvailableSlots(
   date: Date,
   durationMinutes: number,
   appointments: Appointment[],
+  schedule?: DayScheduleWithBreaks,
   interval = 30
 ) {
   const slots: Date[] = [];
-  const dayStart = set(date, {
-    hours: BUSINESS_START_HOUR,
-    minutes: 0,
-    seconds: 0,
-    milliseconds: 0
-  });
-  const dayEnd = set(date, {
-    hours: BUSINESS_END_HOUR,
-    minutes: 0,
-    seconds: 0,
-    milliseconds: 0
-  });
+  const activeSchedule = schedule ?? getDefaultDaySchedule(date);
+
+  if (!activeSchedule.is_working_day) {
+    return slots;
+  }
+
+  const dayStart = timeStringToDate(date, activeSchedule.start_time);
+  const dayEnd = timeStringToDate(date, activeSchedule.end_time);
 
   for (
     let cursor = dayStart;
@@ -123,7 +169,13 @@ export function generateAvailableSlots(
       return cursor < appointmentEnd && slotEnd > appointmentStart;
     });
 
-    if (!overlaps) {
+    const overlapsBreak = activeSchedule.breaks.some((scheduleBreak) => {
+      const breakStart = timeStringToDate(date, scheduleBreak.start_time);
+      const breakEnd = timeStringToDate(date, scheduleBreak.end_time);
+      return cursor < breakEnd && slotEnd > breakStart;
+    });
+
+    if (!overlaps && !overlapsBreak) {
       slots.push(cursor);
     }
   }
