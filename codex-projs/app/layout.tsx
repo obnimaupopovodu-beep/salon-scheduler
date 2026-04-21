@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { SupabaseProvider } from '@/components/providers/SupabaseProvider';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Salon Scheduler',
@@ -17,7 +19,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
-      <body>{children}</body>
+      <body>
+        <SupabaseProvider>{children}</SupabaseProvider>
+      </body>
     </html>
   );
 }
