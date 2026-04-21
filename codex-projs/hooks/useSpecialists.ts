@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import type { Specialist } from "@/types";
@@ -14,48 +14,26 @@ export function useSpecialists({ branchId }: UseSpecialistsOptions = {}) {
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const refetch = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     setLoading(true);
     setError(null);
 
-    let specialistIds: string[] | null = null;
-
-    if (branchId) {
-      const { data: scheduleRows, error: scheduleError } = await supabase
-        .from("day_schedules")
-        .select("specialist_id")
-        .eq("branch_id", branchId);
-
-      if (scheduleError) {
-        setError(scheduleError.message);
-        setSpecialists([]);
-        setLoading(false);
-        return;
-      }
-
-      specialistIds = Array.from(
-        new Set(
-          ((scheduleRows as Array<{ specialist_id: string }> | null) ?? [])
-            .map((item) => item.specialist_id)
-            .filter(Boolean)
-        )
-      );
-
-      if (!specialistIds.length) {
-        setSpecialists([]);
-        setLoading(false);
-        return;
-      }
-    }
-
     let query = supabase.from("specialists").select("*");
 
-    if (specialistIds) {
-      query = query.in("id", specialistIds);
+    if (branchId) {
+      query = query.eq("branch_id", branchId);
     }
 
     const { data, error: fetchError } = await query.order("created_at", { ascending: true });
+
+    if (requestIdRef.current !== requestId) {
+      return;
+    }
 
     if (fetchError) {
       setError(fetchError.message);

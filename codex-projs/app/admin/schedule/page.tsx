@@ -13,17 +13,17 @@ import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useServices } from "@/hooks/useServices";
 import { useSpecialists } from "@/hooks/useSpecialists";
-import { formatRussianDate } from "@/lib/utils";
+import { formatRussianDate, getDefaultDaySchedule } from "@/lib/utils";
 import type { AppointmentWithRelations } from "@/types";
 
 export default function AdminSchedulePage() {
   const isOnline = useOnlineStatus();
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const { branches, loading: branchesLoading } = useBranches();
-  const { specialists, loading: specialistsLoading } = useSpecialists();
-  const { groupedServices, loading: servicesLoading, refetch: refetchServices } = useServices();
   const [activeBranchId, setActiveBranchId] = useState<string>("");
   const [activeSpecialistId, setActiveSpecialistId] = useState<string>("");
+  const { branches, loading: branchesLoading } = useBranches();
+  const { specialists, loading: specialistsLoading } = useSpecialists({ branchId: activeBranchId });
+  const { groupedServices, loading: servicesLoading, refetch: refetchServices } = useServices();
   const [modalOpen, setModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [modalDate, setModalDate] = useState(new Date());
@@ -38,10 +38,23 @@ export default function AdminSchedulePage() {
   }, [activeBranchId, branches]);
 
   useEffect(() => {
-    if (!activeSpecialistId && specialists[0]?.id) {
+    if (!specialists.length) {
+      if (activeSpecialistId) {
+        setActiveSpecialistId("");
+      }
+      return;
+    }
+
+    if (!specialists.some((specialist) => specialist.id === activeSpecialistId)) {
       setActiveSpecialistId(specialists[0].id);
     }
   }, [activeSpecialistId, specialists]);
+
+  useEffect(() => {
+    setModalOpen(false);
+    setScheduleModalOpen(false);
+    setEditingAppointment(null);
+  }, [activeBranchId]);
 
   const selectedSpecialist = useMemo(
     () => specialists.find((specialist) => specialist.id === activeSpecialistId),
@@ -63,7 +76,9 @@ export default function AdminSchedulePage() {
     date: selectedDate
   });
 
-  const currentSchedule = getScheduleForDate(selectedDate);
+  const currentSchedule = selectedSpecialist
+    ? getScheduleForDate(selectedDate)
+    : getDefaultDaySchedule(selectedDate, "", activeBranchId);
 
   const openCreateModal = (date: Date) => {
     setModalDate(date);

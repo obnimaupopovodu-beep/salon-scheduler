@@ -1,6 +1,7 @@
 export interface Specialist {
   id: string;
   name: string;
+  branch_id?: string | null;
   created_at: string;
 }
 

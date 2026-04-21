@@ -13,6 +13,7 @@ import { useSpecialists } from "@/hooks/useSpecialists";
 import {
   formatRussianDate,
   generateAvailableSlots,
+  getDefaultDaySchedule,
   isValidRussianPhone,
   normalizePhone
 } from "@/lib/utils";
@@ -25,7 +26,7 @@ interface BookingWizardProps {
 export function BookingWizard({ branch }: BookingWizardProps) {
   const supabase = useSupabase();
   const isOnline = useOnlineStatus();
-  const { specialists, loading: specialistsLoading } = useSpecialists({ branchId: branch.id });
+  const { specialists, loading: specialistsLoading } = useSpecialists();
   const { groupedServices, services, loading: servicesLoading } = useServices();
   const [step, setStep] = useState(1);
   const [specialistId, setSpecialistId] = useState("");
@@ -40,6 +41,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
 
   const selectedService = services.find((service) => service.id === serviceId);
   const selectedSpecialist = specialists.find((specialist) => specialist.id === specialistId);
+  const specialistMatchesBranch = !selectedSpecialist || selectedSpecialist.branch_id === branch.id;
   const { appointments, loading: appointmentsLoading } = useAppointments({
     specialistId,
     branchId: branch.id,
@@ -52,7 +54,16 @@ export function BookingWizard({ branch }: BookingWizardProps) {
     date: selectedDate,
     mode: "week"
   });
-  const selectedDaySchedule = getScheduleForDate(selectedDate);
+  const selectedDaySchedule = useMemo(() => {
+    if (selectedSpecialist && !specialistMatchesBranch) {
+      return {
+        ...getDefaultDaySchedule(selectedDate, selectedSpecialist.id, branch.id),
+        is_working_day: false
+      };
+    }
+
+    return getScheduleForDate(selectedDate);
+  }, [branch.id, getScheduleForDate, selectedDate, selectedSpecialist, specialistMatchesBranch]);
 
   useEffect(() => {
     setSelectedTime(null);

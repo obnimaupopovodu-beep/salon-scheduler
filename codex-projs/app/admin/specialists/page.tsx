@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
+import { useBranches } from "@/hooks/useBranches";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useSpecialists } from "@/hooks/useSpecialists";
 import type { Specialist } from "@/types";
@@ -12,8 +13,10 @@ import type { Specialist } from "@/types";
 export default function AdminSpecialistsPage() {
   const supabase = useSupabase();
   const isOnline = useOnlineStatus();
+  const { branches, loading: branchesLoading } = useBranches();
   const { specialists, loading, refetch } = useSpecialists();
   const [name, setName] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [editing, setEditing] = useState<Specialist | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -24,6 +27,7 @@ export default function AdminSpecialistsPage() {
   const openCreateModal = () => {
     setEditing(null);
     setName("");
+    setBranchId(branches[0]?.id ?? "");
     setError(null);
     setModalOpen(true);
   };
@@ -31,6 +35,7 @@ export default function AdminSpecialistsPage() {
   const openEditModal = (specialist: Specialist) => {
     setEditing(specialist);
     setName(specialist.name);
+    setBranchId(specialist.branch_id ?? branches[0]?.id ?? "");
     setError(null);
     setModalOpen(true);
   };
@@ -47,12 +52,17 @@ export default function AdminSpecialistsPage() {
       return;
     }
 
+    if (!branchId) {
+      setError("Выберите филиал специалиста.");
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
     const query = editing
-      ? supabase.from("specialists").update({ name: name.trim() }).eq("id", editing.id)
-      : supabase.from("specialists").insert({ name: name.trim() });
+      ? supabase.from("specialists").update({ name: name.trim(), branch_id: branchId }).eq("id", editing.id)
+      : supabase.from("specialists").insert({ name: name.trim(), branch_id: branchId });
 
     const { error: saveError } = await query;
 
@@ -127,6 +137,11 @@ export default function AdminSpecialistsPage() {
           <div className="h-20 rounded-[28px] bg-white" />
           <div className="h-20 rounded-[28px] bg-white" />
         </div>
+      ) : branchesLoading ? (
+        <div className="space-y-3 animate-pulse">
+          <div className="h-20 rounded-[28px] bg-white" />
+          <div className="h-20 rounded-[28px] bg-white" />
+        </div>
       ) : (
         <section className="rounded-[28px] bg-white p-4 shadow-sm">
           <div className="space-y-3">
@@ -135,7 +150,12 @@ export default function AdminSpecialistsPage() {
                 key={specialist.id}
                 className="flex items-center justify-between rounded-2xl bg-canvas px-4 py-3"
               >
-                <span className="text-sm font-medium text-ink">{specialist.name}</span>
+                <div>
+                  <span className="text-sm font-medium text-ink">{specialist.name}</span>
+                  <p className="mt-1 text-xs text-muted">
+                    {branches.find((branch) => branch.id === specialist.branch_id)?.name ?? "Филиал не указан"}
+                  </p>
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -180,6 +200,18 @@ export default function AdminSpecialistsPage() {
               className="mt-4 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
               placeholder="Имя"
             />
+            <select
+              value={branchId}
+              onChange={(event) => setBranchId(event.target.value)}
+              className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
+            >
+              <option value="">Выберите филиал</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
             {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
             <div className="mt-4 grid grid-cols-2 gap-3">
               <button

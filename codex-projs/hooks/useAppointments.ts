@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { getDayRange, getWeekRange } from "@/lib/utils";
@@ -23,6 +23,7 @@ export function useAppointments({
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const range = useMemo(
     () => (mode === "day" ? getDayRange(date) : getWeekRange(date)),
@@ -30,6 +31,9 @@ export function useAppointments({
   );
 
   const refetch = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (!specialistId) {
       setAppointments([]);
       setLoading(false);
@@ -51,6 +55,10 @@ export function useAppointments({
     }
 
     const { data, error: fetchError } = await query.order("start_time", { ascending: true });
+
+    if (requestIdRef.current !== requestId) {
+      return;
+    }
 
     if (fetchError) {
       setError(fetchError.message);

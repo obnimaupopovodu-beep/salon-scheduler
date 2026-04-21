@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import {
@@ -28,6 +28,7 @@ export function useDaySchedules({
   const [schedules, setSchedules] = useState<DayScheduleWithBreaks[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestIdRef = useRef(0);
 
   const range = useMemo(
     () => (mode === "day" ? getDayRange(date) : getWeekRange(date)),
@@ -35,6 +36,9 @@ export function useDaySchedules({
   );
 
   const refetch = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (!specialistId) {
       setSchedules([]);
       setLoading(false);
@@ -59,6 +63,10 @@ export function useDaySchedules({
       ascending: true
     });
 
+    if (requestIdRef.current !== requestId) {
+      return;
+    }
+
     if (scheduleError) {
       setError(scheduleError.message);
       setSchedules([]);
@@ -76,6 +84,10 @@ export function useDaySchedules({
         .select("*")
         .in("day_schedule_id", scheduleIds)
         .order("start_time", { ascending: true });
+
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
 
       if (breaksError) {
         setError(breaksError.message);
