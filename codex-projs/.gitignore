@@ -1,5 +1,6 @@
 .next
 node_modules
+node_modules/
 .env
 .env.local
 .env.*.local
@@ -9,3 +10,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+# в .gitignore
+public/sw.js
+public/workbox-*.js
+public/sw.js.map
+public/workbox-*.js.map

@@ -1,23 +1,23 @@
-import type { Metadata } from "next";
-
-import "@/app/globals.css";
-import { SupabaseProvider } from "@/components/providers/SupabaseProvider";
+import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: "Appointment Scheduling System",
-  description: "Мобильная система записи клиентов на услуги."
+  title: 'Salon Scheduler',
+  description: 'Система записи клиентов',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Записи',
+  },
+  icons: {
+    apple: '/icons/icon-192.png',
+  },
 };
 
-export default function RootLayout({
-  children
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
-      <body className="bg-canvas font-sans text-ink antialiased">
-        <SupabaseProvider>{children}</SupabaseProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
