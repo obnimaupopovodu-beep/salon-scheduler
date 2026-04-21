@@ -16,11 +16,16 @@ import {
   isValidRussianPhone,
   normalizePhone
 } from "@/lib/utils";
+import type { Branch } from "@/types";
 
-export function BookingWizard() {
+interface BookingWizardProps {
+  branch: Branch;
+}
+
+export function BookingWizard({ branch }: BookingWizardProps) {
   const supabase = useSupabase();
   const isOnline = useOnlineStatus();
-  const { specialists, loading: specialistsLoading } = useSpecialists();
+  const { specialists, loading: specialistsLoading } = useSpecialists({ branchId: branch.id });
   const { groupedServices, services, loading: servicesLoading } = useServices();
   const [step, setStep] = useState(1);
   const [specialistId, setSpecialistId] = useState("");
@@ -37,11 +42,13 @@ export function BookingWizard() {
   const selectedSpecialist = specialists.find((specialist) => specialist.id === specialistId);
   const { appointments, loading: appointmentsLoading } = useAppointments({
     specialistId,
+    branchId: branch.id,
     date: selectedDate,
     mode: "week"
   });
   const { loading: schedulesLoading, getScheduleForDate } = useDaySchedules({
     specialistId,
+    branchId: branch.id,
     date: selectedDate,
     mode: "week"
   });
@@ -50,6 +57,12 @@ export function BookingWizard() {
   useEffect(() => {
     setSelectedTime(null);
   }, [selectedDate, serviceId, specialistId]);
+
+  useEffect(() => {
+    if (!specialists.some((specialist) => specialist.id === specialistId)) {
+      setSpecialistId("");
+    }
+  }, [specialistId, specialists]);
 
   const slotsForDay = useMemo(() => {
     if (!selectedService || !specialistId) {
@@ -86,6 +99,7 @@ export function BookingWizard() {
     const end = new Date(start.getTime() + selectedService.duration_minutes * 60000);
     const { error: insertError } = await supabase.from("appointments").insert({
       specialist_id: selectedSpecialist.id,
+      branch_id: branch.id,
       service_id: selectedService.id,
       client_name: name.trim(),
       client_phone: normalizePhone(phone),

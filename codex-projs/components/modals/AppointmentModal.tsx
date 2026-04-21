@@ -23,6 +23,7 @@ interface AppointmentModalProps {
   mode: "create" | "edit";
   selectedDate: Date;
   selectedSpecialistId?: string;
+  branchId: string;
   specialists: Specialist[];
   serviceGroups: ServiceGroup[];
   appointment?: AppointmentWithRelations | null;
@@ -35,6 +36,7 @@ export function AppointmentModal({
   mode,
   selectedDate,
   selectedSpecialistId,
+  branchId,
   specialists,
   serviceGroups,
   appointment,
@@ -109,6 +111,7 @@ export function AppointmentModal({
     const normalizedPhone = normalizePhone(clientPhone);
     const payload: AppointmentPayload = {
       specialist_id: specialistId,
+      branch_id: branchId,
       service_id: serviceId,
       client_name: clientName.trim(),
       client_phone: normalizedPhone,

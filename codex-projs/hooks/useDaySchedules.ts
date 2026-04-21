@@ -13,12 +13,14 @@ import type { DaySchedule, DayScheduleWithBreaks, ScheduleBreak } from "@/types"
 
 interface UseDaySchedulesOptions {
   specialistId?: string | null;
+  branchId?: string;
   date: Date;
   mode?: "day" | "week";
 }
 
 export function useDaySchedules({
   specialistId,
+  branchId,
   date,
   mode = "day"
 }: UseDaySchedulesOptions) {
@@ -42,13 +44,20 @@ export function useDaySchedules({
     setLoading(true);
     setError(null);
 
-    const { data: scheduleRows, error: scheduleError } = await supabase
+    let query = supabase
       .from("day_schedules")
       .select("*")
       .eq("specialist_id", specialistId)
       .gte("schedule_date", formatDateKey(range.start))
-      .lte("schedule_date", formatDateKey(range.end))
-      .order("schedule_date", { ascending: true });
+      .lte("schedule_date", formatDateKey(range.end));
+
+    if (branchId) {
+      query = query.eq("branch_id", branchId);
+    }
+
+    const { data: scheduleRows, error: scheduleError } = await query.order("schedule_date", {
+      ascending: true
+    });
 
     if (scheduleError) {
       setError(scheduleError.message);
@@ -85,7 +94,7 @@ export function useDaySchedules({
 
     setSchedules(merged);
     setLoading(false);
-  }, [range.end, range.start, specialistId, supabase]);
+  }, [branchId, range.end, range.start, specialistId, supabase]);
 
   useEffect(() => {
     void refetch();
@@ -96,10 +105,10 @@ export function useDaySchedules({
       const dateKey = formatDateKey(targetDate);
       return (
         schedules.find((schedule) => schedule.schedule_date === dateKey)
-        ?? getDefaultDaySchedule(targetDate, specialistId ?? "")
+        ?? getDefaultDaySchedule(targetDate, specialistId ?? "", branchId)
       );
     },
-    [schedules, specialistId]
+    [branchId, schedules, specialistId]
   );
 
   return { schedules, loading, error, refetch, getScheduleForDate };

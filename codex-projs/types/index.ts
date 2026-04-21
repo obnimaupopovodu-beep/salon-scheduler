@@ -4,6 +4,14 @@ export interface Specialist {
   created_at: string;
 }
 
+export interface Branch {
+  id: string;
+  slug: string;
+  name: string;
+  address: string;
+  created_at?: string;
+}
+
 export interface ServiceCategory {
   id: string;
   name: string;
@@ -29,6 +37,7 @@ export interface Client {
 export interface Appointment {
   id: string;
   specialist_id: string;
+  branch_id?: string;
   service_id: string | null;
   client_name: string;
   client_phone: string;
@@ -51,6 +60,7 @@ export interface ServiceGroup {
 
 export interface AppointmentPayload {
   specialist_id: string;
+  branch_id?: string;
   service_id: string;
   client_name: string;
   client_phone: string;
@@ -63,6 +73,7 @@ export interface AppointmentPayload {
 export interface DaySchedule {
   id?: string;
   specialist_id: string;
+  branch_id?: string;
   schedule_date: string;
   start_time: string;
   end_time: string;

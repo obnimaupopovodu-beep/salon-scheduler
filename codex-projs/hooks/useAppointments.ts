@@ -8,12 +8,14 @@ import type { AppointmentWithRelations } from "@/types";
 
 interface UseAppointmentsOptions {
   specialistId?: string | null;
+  branchId?: string;
   date: Date;
   mode?: "day" | "week";
 }
 
 export function useAppointments({
   specialistId,
+  branchId,
   date,
   mode = "day"
 }: UseAppointmentsOptions) {
@@ -37,13 +39,18 @@ export function useAppointments({
     setLoading(true);
     setError(null);
 
-    const { data, error: fetchError } = await supabase
+    let query = supabase
       .from("appointments")
       .select("*, specialists(id, name), services(id, name, duration_minutes, price)")
       .eq("specialist_id", specialistId)
       .gte("start_time", range.start.toISOString())
-      .lte("start_time", range.end.toISOString())
-      .order("start_time", { ascending: true });
+      .lte("start_time", range.end.toISOString());
+
+    if (branchId) {
+      query = query.eq("branch_id", branchId);
+    }
+
+    const { data, error: fetchError } = await query.order("start_time", { ascending: true });
 
     if (fetchError) {
       setError(fetchError.message);
@@ -53,7 +60,7 @@ export function useAppointments({
     }
 
     setLoading(false);
-  }, [range.end, range.start, specialistId, supabase]);
+  }, [branchId, range.end, range.start, specialistId, supabase]);
 
   useEffect(() => {
     void refetch();
@@ -65,7 +72,7 @@ export function useAppointments({
     }
 
     const channel = supabase
-      .channel(`appointments-${specialistId}-${mode}`)
+      .channel(`appointments-${specialistId}-${branchId ?? "all"}-${mode}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "appointments" },
@@ -78,7 +85,7 @@ export function useAppointments({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [mode, refetch, specialistId, supabase]);
+  }, [branchId, mode, refetch, specialistId, supabase]);
 
   return { appointments, loading, error, refetch };
 }

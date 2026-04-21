@@ -16,6 +16,7 @@ import type { DayScheduleWithBreaks, ScheduleBreak, Specialist } from "@/types";
 interface DayScheduleModalProps {
   open: boolean;
   selectedDate: Date;
+  branchId: string;
   specialist?: Specialist | null;
   schedule?: DayScheduleWithBreaks;
   onClose: () => void;
@@ -32,6 +33,7 @@ function createEmptyBreak(): ScheduleBreak {
 export function DayScheduleModal({
   open,
   selectedDate,
+  branchId,
   specialist,
   schedule,
   onClose,
@@ -39,8 +41,8 @@ export function DayScheduleModal({
 }: DayScheduleModalProps) {
   const supabase = useSupabase();
   const baseSchedule = useMemo(
-    () => schedule ?? getDefaultDaySchedule(selectedDate, specialist?.id ?? ""),
-    [schedule, selectedDate, specialist?.id]
+    () => schedule ?? getDefaultDaySchedule(selectedDate, specialist?.id ?? "", branchId),
+    [branchId, schedule, selectedDate, specialist?.id]
   );
   const [startTime, setStartTime] = useState(DEFAULT_DAY_START_TIME);
   const [endTime, setEndTime] = useState(DEFAULT_DAY_END_TIME);
@@ -100,6 +102,7 @@ export function DayScheduleModal({
 
     const schedulePayload = {
       specialist_id: specialist.id,
+      branch_id: branchId,
       schedule_date: baseSchedule.schedule_date,
       start_time: startTime,
       end_time: endTime,
@@ -108,7 +111,7 @@ export function DayScheduleModal({
 
     const { data: savedSchedule, error: scheduleError } = await supabase
       .from("day_schedules")
-      .upsert(schedulePayload, { onConflict: "specialist_id,schedule_date" })
+      .upsert(schedulePayload, { onConflict: "specialist_id,schedule_date,branch_id" })
       .select("*")
       .single();
 

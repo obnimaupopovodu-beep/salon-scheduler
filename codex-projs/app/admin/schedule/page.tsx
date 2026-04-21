@@ -8,6 +8,7 @@ import { WeekSwitcher } from "@/components/calendar/WeekSwitcher";
 import { AppointmentModal } from "@/components/modals/AppointmentModal";
 import { DayScheduleModal } from "@/components/modals/DayScheduleModal";
 import { useAppointments } from "@/hooks/useAppointments";
+import { useBranches } from "@/hooks/useBranches";
 import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useServices } from "@/hooks/useServices";
@@ -18,8 +19,10 @@ import type { AppointmentWithRelations } from "@/types";
 export default function AdminSchedulePage() {
   const isOnline = useOnlineStatus();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const { branches, loading: branchesLoading } = useBranches();
   const { specialists, loading: specialistsLoading } = useSpecialists();
   const { groupedServices, loading: servicesLoading, refetch: refetchServices } = useServices();
+  const [activeBranchId, setActiveBranchId] = useState<string>("");
   const [activeSpecialistId, setActiveSpecialistId] = useState<string>("");
   const [modalOpen, setModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -27,6 +30,12 @@ export default function AdminSchedulePage() {
   const [editingAppointment, setEditingAppointment] =
     useState<AppointmentWithRelations | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!activeBranchId && branches[0]) {
+      setActiveBranchId(branches[0].id);
+    }
+  }, [activeBranchId, branches]);
 
   useEffect(() => {
     if (!activeSpecialistId && specialists[0]?.id) {
@@ -41,6 +50,7 @@ export default function AdminSchedulePage() {
 
   const { appointments, loading: appointmentsLoading, refetch } = useAppointments({
     specialistId: activeSpecialistId,
+    branchId: activeBranchId,
     date: selectedDate
   });
   const {
@@ -49,6 +59,7 @@ export default function AdminSchedulePage() {
     getScheduleForDate
   } = useDaySchedules({
     specialistId: activeSpecialistId,
+    branchId: activeBranchId,
     date: selectedDate
   });
 
@@ -99,7 +110,7 @@ export default function AdminSchedulePage() {
           </h1>
         </div>
 
-        <div className="flex items-end gap-3">
+        <div className="flex flex-col items-end gap-3">
           <button
             type="button"
             onClick={() => {
@@ -113,22 +124,41 @@ export default function AdminSchedulePage() {
             Сегодня
           </button>
 
-          <label className="flex min-w-[150px] flex-col">
-            <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">
-              Специалист
-            </span>
-            <select
-              value={activeSpecialistId}
-              onChange={(event) => setActiveSpecialistId(event.target.value)}
-              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent"
-            >
-              {specialists.map((specialist) => (
-                <option key={specialist.id} value={specialist.id}>
-                  {specialist.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="flex flex-col items-end gap-3">
+            <label className="flex min-w-[150px] flex-col">
+              <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">
+                Филиал
+              </span>
+              <select
+                value={activeBranchId}
+                onChange={(event) => setActiveBranchId(event.target.value)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent"
+              >
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex min-w-[150px] flex-col">
+              <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">
+                Специалист
+              </span>
+              <select
+                value={activeSpecialistId}
+                onChange={(event) => setActiveSpecialistId(event.target.value)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent"
+              >
+                {specialists.map((specialist) => (
+                  <option key={specialist.id} value={specialist.id}>
+                    {specialist.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       </header>
 
@@ -146,7 +176,7 @@ export default function AdminSchedulePage() {
         </span>
       </button>
 
-      {specialistsLoading || servicesLoading || appointmentsLoading || schedulesLoading ? (
+      {branchesLoading || specialistsLoading || servicesLoading || appointmentsLoading || schedulesLoading ? (
         <div className="space-y-3 animate-pulse">
           <div className="h-20 rounded-[28px] bg-white" />
           <div className="h-[520px] rounded-[28px] bg-white" />
@@ -176,6 +206,7 @@ export default function AdminSchedulePage() {
         mode={editingAppointment ? "edit" : "create"}
         selectedDate={modalDate}
         selectedSpecialistId={selectedSpecialist?.id}
+        branchId={activeBranchId}
         specialists={specialists}
         serviceGroups={groupedServices}
         appointment={editingAppointment}
@@ -189,6 +220,7 @@ export default function AdminSchedulePage() {
       <DayScheduleModal
         open={scheduleModalOpen}
         selectedDate={selectedDate}
+        branchId={activeBranchId}
         specialist={selectedSpecialist}
         schedule={currentSchedule}
         onClose={() => setScheduleModalOpen(false)}

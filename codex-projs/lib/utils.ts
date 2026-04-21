@@ -107,9 +107,14 @@ export function minutesToTimeString(totalMinutes: number) {
   return `${hours}:${minutes}`;
 }
 
-export function getDefaultDaySchedule(date: Date, specialistId = ""): DayScheduleWithBreaks {
+export function getDefaultDaySchedule(
+  date: Date,
+  specialistId = "",
+  branchId?: string
+): DayScheduleWithBreaks {
   return {
     specialist_id: specialistId,
+    branch_id: branchId,
     schedule_date: formatDateKey(date),
     start_time: DEFAULT_DAY_START_TIME,
     end_time: DEFAULT_DAY_END_TIME,
