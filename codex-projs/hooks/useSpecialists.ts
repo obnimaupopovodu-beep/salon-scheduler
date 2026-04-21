@@ -23,13 +23,10 @@ export function useSpecialists({ branchId }: UseSpecialistsOptions = {}) {
     setLoading(true);
     setError(null);
 
-    let query = supabase.from("specialists").select("*");
-
-    if (branchId) {
-      query = query.eq("branch_id", branchId);
-    }
-
-    const { data, error: fetchError } = await query.order("created_at", { ascending: true });
+    const { data, error: fetchError } = await supabase
+      .from("specialists")
+      .select("*")
+      .order("created_at", { ascending: true });
 
     if (requestIdRef.current !== requestId) {
       return;

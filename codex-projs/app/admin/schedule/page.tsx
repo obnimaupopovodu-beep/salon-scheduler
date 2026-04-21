@@ -22,7 +22,7 @@ export default function AdminSchedulePage() {
   const [activeBranchId, setActiveBranchId] = useState<string>("");
   const [activeSpecialistId, setActiveSpecialistId] = useState<string>("");
   const { branches, loading: branchesLoading } = useBranches();
-  const { specialists, loading: specialistsLoading } = useSpecialists({ branchId: activeBranchId });
+  const { specialists, loading: specialistsLoading } = useSpecialists();
   const { groupedServices, loading: servicesLoading, refetch: refetchServices } = useServices();
   const [modalOpen, setModalOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);

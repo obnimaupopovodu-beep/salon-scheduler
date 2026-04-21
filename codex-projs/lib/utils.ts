@@ -118,7 +118,7 @@ export function getDefaultDaySchedule(
     schedule_date: formatDateKey(date),
     start_time: DEFAULT_DAY_START_TIME,
     end_time: DEFAULT_DAY_END_TIME,
-    is_working_day: true,
+    is_working_day: false,
     breaks: []
   };
 }
