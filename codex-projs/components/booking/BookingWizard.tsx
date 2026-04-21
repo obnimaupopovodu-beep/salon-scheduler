@@ -25,8 +25,17 @@ interface BookingWizardProps {
 export function BookingWizard({ branch }: BookingWizardProps) {
   const supabase = useSupabase();
   const isOnline = useOnlineStatus();
-  const { specialists, loading: specialistsLoading } = useSpecialists();
-  const { groupedServices, services, loading: servicesLoading } = useServices();
+  const {
+    specialists,
+    loading: specialistsLoading,
+    error: specialistsError
+  } = useSpecialists();
+  const {
+    groupedServices,
+    services,
+    loading: servicesLoading,
+    error: servicesError
+  } = useServices();
   const [step, setStep] = useState(1);
   const [specialistId, setSpecialistId] = useState("");
   const [serviceId, setServiceId] = useState("");
@@ -143,6 +152,12 @@ export function BookingWizard({ branch }: BookingWizardProps) {
         </div>
       ) : null}
 
+      {specialistsError || servicesError ? (
+        <div className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">
+          {specialistsError || servicesError}
+        </div>
+      ) : null}
+
       <div className="mb-6 flex items-center gap-2">
         {[1, 2, 3].map((item) => (
           <div
@@ -175,6 +190,9 @@ export function BookingWizard({ branch }: BookingWizardProps) {
                 </option>
               ))}
             </select>
+            {!specialistsLoading && !specialists.length ? (
+              <span className="mt-1 block text-sm text-muted">Специалисты пока недоступны.</span>
+            ) : null}
           </label>
 
           <label className="block">
@@ -195,6 +213,9 @@ export function BookingWizard({ branch }: BookingWizardProps) {
                 </optgroup>
               ))}
             </select>
+            {!servicesLoading && !services.length ? (
+              <span className="mt-1 block text-sm text-muted">Услуги пока недоступны.</span>
+            ) : null}
           </label>
 
           <button
