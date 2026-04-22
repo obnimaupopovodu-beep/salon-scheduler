@@ -22,6 +22,16 @@ interface BookingWizardProps {
   branch: Branch;
 }
 
+function getBookingErrorMessage(code: string | undefined): string {
+  if (code === "23505") {
+    return "Этот слот только что заняли. Пожалуйста, выберите другое время.";
+  }
+  if (code === "23P01") {
+    return "Выбранное время пересекается с уже существующей записью. Пожалуйста, выберите другой слот.";
+  }
+  return "Не удалось создать запись. Попробуйте ещё раз.";
+}
+
 export function BookingWizard({ branch }: BookingWizardProps) {
   const supabase = useSupabase();
   const isOnline = useOnlineStatus();
@@ -49,7 +59,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
 
   const selectedService = services.find((service) => service.id === serviceId);
   const selectedSpecialist = specialists.find((specialist) => specialist.id === specialistId);
-  const { appointments, loading: appointmentsLoading } = useAppointments({
+  const { appointments, loading: appointmentsLoading, refetch: refetchAppointments } = useAppointments({
     specialistId,
     branchId: branch.id,
     date: selectedDate,
@@ -109,6 +119,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
 
     const start = new Date(selectedTime);
     const end = new Date(start.getTime() + selectedService.duration_minutes * 60000);
+
     const { error: insertError } = await supabase.from("appointments").insert({
       specialist_id: selectedSpecialist.id,
       branch_id: branch.id,
@@ -121,8 +132,16 @@ export function BookingWizard({ branch }: BookingWizardProps) {
     });
 
     if (insertError) {
-      setError(insertError.message);
+      const userMessage = getBookingErrorMessage(insertError.code);
+      setError(userMessage);
       setSubmitting(false);
+
+      // Slot was taken — refresh appointments so UI shows the updated availability
+      if (insertError.code === "23505" || insertError.code === "23P01") {
+        setSelectedTime(null);
+        await refetchAppointments();
+      }
+
       return;
     }
 
