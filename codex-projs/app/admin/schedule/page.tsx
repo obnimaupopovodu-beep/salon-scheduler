@@ -29,7 +29,6 @@ export default function AdminSchedulePage() {
   const [modalDate, setModalDate] = useState(new Date());
   const [editingAppointment, setEditingAppointment] =
     useState<AppointmentWithRelations | null>(null);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   useEffect(() => {
     if (!activeBranchId && branches[0]) {
@@ -93,24 +92,7 @@ export default function AdminSchedulePage() {
   };
 
   return (
-    <div
-      className="space-y-4"
-      onTouchStart={(event) => setTouchStartX(event.changedTouches[0]?.clientX ?? null)}
-      onTouchEnd={(event) => {
-        const endX = event.changedTouches[0]?.clientX;
-        if (touchStartX === null || typeof endX !== "number") {
-          return;
-        }
-
-        const delta = endX - touchStartX;
-        if (delta > 40) {
-          setSelectedDate((current) => subDays(current, 7));
-        }
-        if (delta < -40) {
-          setSelectedDate((current) => addDays(current, 7));
-        }
-      }}
-    >
+    <div className="space-y-4">
       {!isOnline ? (
         <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
           Нет подключения к интернету. Последние данные могут быть устаревшими.
