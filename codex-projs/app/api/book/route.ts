@@ -77,7 +77,16 @@ export async function POST(request: Request) {
     time: format(bookingStart, "HH:mm"),
     comment: booking.notes ?? undefined
   }).catch((notificationError) => {
-    console.error("Failed to send Telegram booking notification:", notificationError);
+    console.error("Failed to send Telegram booking notification:", {
+      message: notificationError instanceof Error ? notificationError.message : notificationError,
+      booking: {
+        clientName: booking.client_name,
+        phone: booking.client_phone,
+        service: body.serviceName,
+        master: body.specialistName,
+        startTime: booking.start_time
+      }
+    });
   });
 
   return NextResponse.json({ success: true });
