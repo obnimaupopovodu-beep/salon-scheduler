@@ -4,7 +4,6 @@ import { addDays, format, isSameDay, subDays } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
 import { WeekSwitcher } from "@/components/calendar/WeekSwitcher";
-import { useSupabase } from "@/components/providers/SupabaseProvider";
 import { useAppointments } from "@/hooks/useAppointments";
 import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -33,7 +32,6 @@ function getBookingErrorMessage(code: string | undefined): string {
 }
 
 export function BookingWizard({ branch }: BookingWizardProps) {
-  const supabase = useSupabase();
   const isOnline = useOnlineStatus();
   const {
     specialists,
@@ -119,17 +117,28 @@ export function BookingWizard({ branch }: BookingWizardProps) {
 
     const start = new Date(selectedTime);
     const end = new Date(start.getTime() + selectedService.duration_minutes * 60000);
+    const normalizedPhone = normalizePhone(phone);
 
-    const { error: insertError } = await supabase.from("appointments").insert({
-      specialist_id: selectedSpecialist.id,
-      branch_id: branch.id,
-      service_id: selectedService.id,
-      client_name: name.trim(),
-      client_phone: normalizePhone(phone),
-      confirmation: 0,
-      start_time: start.toISOString(),
-      end_time: end.toISOString()
+    const response = await fetch("/api/book", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        specialistId: selectedSpecialist.id,
+        branchId: branch.id,
+        serviceId: selectedService.id,
+        serviceName: selectedService.name,
+        specialistName: selectedSpecialist.name,
+        clientName: name.trim(),
+        clientPhone: normalizedPhone,
+        startTime: start.toISOString(),
+        endTime: end.toISOString()
+      })
     });
+
+    const payload = (await response.json()) as { code?: string; message?: string; success?: boolean };
+    const insertError = response.ok ? null : { code: payload.code, message: payload.message };
 
     if (insertError) {
       const userMessage = getBookingErrorMessage(insertError.code);
