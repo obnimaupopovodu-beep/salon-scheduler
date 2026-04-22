@@ -8,6 +8,7 @@ export async function sendBookingNotification(booking: {
   phone: string;
   service: string;
   master: string;
+  branch: string;
   date: string;
   time: string;
   comment?: string;
@@ -19,6 +20,7 @@ export async function sendBookingNotification(booking: {
 📞 Телефон: ${booking.phone}
 ✂️ Услуга: ${booking.service}
 👩‍🎨 Мастер: ${booking.master}
+🏠 Филиал: ${booking.branch}
 📆 Дата: ${booking.date}
 🕐 Время: ${booking.time}
 ${booking.comment ? `💬 Комментарий: ${booking.comment}` : ''}

@@ -7,6 +7,7 @@ import { sendBookingNotification } from "@/lib/telegram";
 interface CreateBookingBody {
   specialistId: string;
   branchId: string;
+  branchName: string;
   serviceId: string;
   serviceName: string;
   specialistName: string;
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
   if (
     !body.specialistId ||
     !body.branchId ||
+    !body.branchName ||
     !body.serviceId ||
     !body.serviceName ||
     !body.specialistName ||
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
       phone: booking.client_phone,
       service: body.serviceName,
       master: body.specialistName,
+      branch: body.branchName,
       date: format(bookingStart, "dd.MM.yyyy"),
       time: format(bookingStart, "HH:mm"),
       comment: booking.notes ?? undefined
@@ -89,6 +92,7 @@ export async function POST(request: Request) {
         phone: booking.client_phone,
         service: body.serviceName,
         master: body.specialistName,
+        branch: body.branchName,
         startTime: booking.start_time
       }
     });

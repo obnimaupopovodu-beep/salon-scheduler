@@ -127,6 +127,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
       body: JSON.stringify({
         specialistId: selectedSpecialist.id,
         branchId: branch.id,
+        branchName: branch.name,
         serviceId: selectedService.id,
         serviceName: selectedService.name,
         specialistName: selectedSpecialist.name,
