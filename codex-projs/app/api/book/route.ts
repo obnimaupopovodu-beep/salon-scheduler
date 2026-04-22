@@ -68,15 +68,20 @@ export async function POST(request: Request) {
   }
 
   const bookingStart = new Date(booking.start_time);
-  sendBookingNotification({
-    clientName: booking.client_name,
-    phone: booking.client_phone,
-    service: body.serviceName,
-    master: body.specialistName,
-    date: format(bookingStart, "dd.MM.yyyy"),
-    time: format(bookingStart, "HH:mm"),
-    comment: booking.notes ?? undefined
-  }).catch((notificationError) => {
+  let notificationSent = true;
+
+  try {
+    await sendBookingNotification({
+      clientName: booking.client_name,
+      phone: booking.client_phone,
+      service: body.serviceName,
+      master: body.specialistName,
+      date: format(bookingStart, "dd.MM.yyyy"),
+      time: format(bookingStart, "HH:mm"),
+      comment: booking.notes ?? undefined
+    });
+  } catch (notificationError) {
+    notificationSent = false;
     console.error("Failed to send Telegram booking notification:", {
       message: notificationError instanceof Error ? notificationError.message : notificationError,
       booking: {
@@ -87,7 +92,7 @@ export async function POST(request: Request) {
         startTime: booking.start_time
       }
     });
-  });
+  }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, notificationSent });
 }
