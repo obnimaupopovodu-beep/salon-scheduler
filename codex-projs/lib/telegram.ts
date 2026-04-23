@@ -49,3 +49,4 @@ ${booking.comment ? `💬 Комментарий: ${booking.comment}` : ''}
     throw new Error(payload.description ?? "Telegram API request failed.");
   }
 }
+

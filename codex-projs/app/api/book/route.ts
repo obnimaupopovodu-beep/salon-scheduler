@@ -46,57 +46,40 @@ export async function POST(request: Request) {
   }
 
   const supabase = createClient();
-  const { data: booking, error } = await supabase
-    .from("appointments")
-    .insert({
-      specialist_id: body.specialistId,
-      branch_id: body.branchId,
-      service_id: body.serviceId,
-      client_name: body.clientName,
-      client_phone: body.clientPhone,
-      confirmation: 0,
-      start_time: body.startTime,
-      end_time: body.endTime,
-      notes: body.comment?.trim() ? body.comment.trim() : null
-    })
-    .select("client_name, client_phone, start_time, notes")
-    .single();
+  // route.ts — убираем .select().single()
+const { error } = await supabase
+  .from("appointments")
+  .insert({
+    specialist_id: body.specialistId,
+    branch_id: body.branchId,
+    service_id: body.serviceId,
+    client_name: body.clientName,
+    client_phone: body.clientPhone,
+    confirmation: 0,
+    start_time: body.startTime,
+    end_time: body.endTime,
+    notes: body.comment?.trim() ? body.comment.trim() : null
+  });
 
-  if (error) {
-    return NextResponse.json(
-      { success: false, code: error.code, message: error.message },
-      { status: 400 }
-    );
-  }
+if (error) {
+  return NextResponse.json(
+    { success: false, code: error.code, message: error.message },
+    { status: 400 }
+  );
+}
 
-  const bookingStart = new Date(booking.start_time);
-  let notificationSent = true;
+// Данные для Telegram берём из body напрямую
+const bookingStart = new Date(body.startTime);
+sendBookingNotification({
+  clientName: body.clientName,
+  phone: body.clientPhone,
+  service: body.serviceName,
+  master: body.specialistName,
+  branch: body.branchName,
+  date: format(bookingStart, "dd.MM.yyyy"),
+  time: format(bookingStart, "HH:mm"),
+  comment: body.comment
+}).catch(console.error);
 
-  try {
-    await sendBookingNotification({
-      clientName: booking.client_name,
-      phone: booking.client_phone,
-      service: body.serviceName,
-      master: body.specialistName,
-      branch: body.branchName,
-      date: format(bookingStart, "dd.MM.yyyy"),
-      time: format(bookingStart, "HH:mm"),
-      comment: booking.notes ?? undefined
-    });
-  } catch (notificationError) {
-    notificationSent = false;
-    console.error("Failed to send Telegram booking notification:", {
-      message: notificationError instanceof Error ? notificationError.message : notificationError,
-      booking: {
-        clientName: booking.client_name,
-        phone: booking.client_phone,
-        service: body.serviceName,
-        master: body.specialistName,
-        branch: body.branchName,
-        startTime: booking.start_time
-      }
-    });
-  }
-
-  return NextResponse.json({ success: true, notificationSent });
+return NextResponse.json({ success: true, notificationSent: true });
 }
