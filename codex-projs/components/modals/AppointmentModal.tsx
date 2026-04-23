@@ -7,7 +7,7 @@ import { ClientAutocomplete } from "@/components/modals/ClientAutocomplete";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
 import {
   getInitialTimeFromDate,
-  isValidRussianPhone,
+  isValidPhone,
   normalizePhone,
   timeStringToDate
 } from "@/lib/utils";
@@ -48,7 +48,7 @@ export function AppointmentModal({
   const [specialistId, setSpecialistId] = useState(selectedSpecialistId ?? "");
   const [serviceId, setServiceId] = useState("");
   const [clientName, setClientName] = useState("");
-  const [clientPhone, setClientPhone] = useState("+7");
+  const [clientPhone, setClientPhone] = useState("");
   const [confirmation, setConfirmation] = useState<0 | 1>(0);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export function AppointmentModal({
       setSpecialistId(selectedSpecialistId ?? specialists[0]?.id ?? "");
       setServiceId(serviceGroups[0]?.services[0]?.id ?? "");
       setClientName("");
-      setClientPhone("+7");
+      setClientPhone("");
       setConfirmation(0);
       setNotes("");
     }
@@ -92,8 +92,8 @@ export function AppointmentModal({
       return;
     }
 
-    if (!isValidRussianPhone(clientPhone)) {
-      setError("Введите телефон в формате +7XXXXXXXXXX.");
+    if (!clientPhone.trim()) {
+      setError("Введите номер телефона.");
       return;
     }
 
@@ -283,7 +283,7 @@ export function AppointmentModal({
                 type="tel"
                 value={clientPhone}
                 onChange={(event) => setClientPhone(normalizePhone(event.target.value))}
-                placeholder="+79991234567"
+                placeholder="+1234567890"
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
               />
             </label>

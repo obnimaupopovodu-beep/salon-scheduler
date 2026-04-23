@@ -78,13 +78,18 @@ export function getInitialTimeFromDate(date: Date) {
 }
 
 export function normalizePhone(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  const local = digits.startsWith("7") ? digits.slice(1) : digits;
-  return `+7${local.slice(0, 10)}`;
+  // Оставляем + в начале, убираем пробелы, скобки, тире
+  const cleaned = phone.replace(/[^\d+]/g, "");
+  // Гарантируем + в начале если есть цифры
+  if (!cleaned.startsWith("+") && cleaned.length > 0) {
+    return "+" + cleaned;
+  }
+  return cleaned;
 }
 
-export function isValidRussianPhone(phone: string) {
-  return /^\+7\d{10}$/.test(normalizePhone(phone));
+export function isValidPhone(phone: string) {
+  // Минимум 7 цифр, максимум 15 (стандарт E.164)
+  return /^\+\d{7,15}$/.test(normalizePhone(phone));
 }
 
 export function buildServiceGroups(categories: ServiceCategory[], services: Service[]): ServiceGroup[] {

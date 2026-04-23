@@ -15,7 +15,7 @@ export interface AddClientModalProps {
 export function AddClientModal({ isOpen, onClose, onClientAdded }: AddClientModalProps) {
   const supabase = useSupabase();
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("+7");
+  const [phone, setPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [phoneError, setPhoneError] = useState<string | null>(null);
 
@@ -25,7 +25,7 @@ export function AddClientModal({ isOpen, onClose, onClientAdded }: AddClientModa
     }
 
     setName("");
-    setPhone("+7");
+    setPhone("");
     setSubmitting(false);
     setPhoneError(null);
   }, [isOpen]);

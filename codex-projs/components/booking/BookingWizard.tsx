@@ -12,7 +12,7 @@ import { useSpecialists } from "@/hooks/useSpecialists";
 import {
   formatRussianDate,
   generateAvailableSlots,
-  isValidRussianPhone,
+  isValidPhone,
   normalizePhone
 } from "@/lib/utils";
 import type { Branch } from "@/types";
@@ -50,7 +50,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [phone, setPhone] = useState("+7");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -107,12 +107,13 @@ export function BookingWizard({ branch }: BookingWizardProps) {
       return;
     }
 
-    if (!isValidRussianPhone(phone)) {
-      setError("Введите телефон в формате +7XXXXXXXXXX.");
+    if (!isValidPhone(phone)) {
+      setError("Введите телефон в формате +XXXXXXXXXXX.");
       return;
     }
 
     setSubmitting(true);
+    
     setError(null);
 
     const start = new Date(selectedTime);
@@ -361,7 +362,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
             <input
               type="tel"
               value={phone}
-              onChange={(event) => setPhone(normalizePhone(event.target.value))}
+              onChange={(event) => setPhone(event.target.value)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
             />
           </label>
