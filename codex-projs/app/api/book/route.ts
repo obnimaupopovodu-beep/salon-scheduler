@@ -1,6 +1,7 @@
 import { format } from "date-fns";
 import { NextResponse } from "next/server";
 
+import { isPastBookingTime } from "@/lib/booking/validation";
 import { createClient } from "@/lib/supabase/server";
 import { sendBookingNotification } from "@/lib/telegram";
 
@@ -60,6 +61,23 @@ export async function POST(request: Request) {
     );
   }
 
+  const startTime = new Date(body.startTime);
+  const endTime = new Date(body.endTime);
+
+  if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+    return NextResponse.json(
+      { success: false, code: "INVALID_DATE", message: "Передана некорректная дата записи." },
+      { status: 400 }
+    );
+  }
+
+  if (isPastBookingTime(body.startTime) || isPastBookingTime(body.endTime)) {
+    return NextResponse.json(
+      { success: false, code: "PAST_DATE", message: "Нельзя записаться на прошедшее время." },
+      { status: 400 }
+    );
+  }
+
   // Verify Turnstile captcha
   const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
   if (turnstileSecret) {
@@ -107,15 +125,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const bookingStart = new Date(body.startTime);
   sendBookingNotification({
     clientName: body.clientName,
     phone: body.clientPhone,
     service: body.serviceName,
     master: body.specialistName,
     branch: body.branchName,
-    date: format(bookingStart, "dd.MM.yyyy"),
-    time: format(bookingStart, "HH:mm"),
+    date: format(startTime, "dd.MM.yyyy"),
+    time: format(startTime, "HH:mm"),
     comment: body.comment
   }).catch(console.error);
 

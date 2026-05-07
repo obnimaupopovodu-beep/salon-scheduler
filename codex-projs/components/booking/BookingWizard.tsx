@@ -9,6 +9,7 @@ import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useServices } from "@/hooks/useServices";
 import { useSpecialists } from "@/hooks/useSpecialists";
+import { isPastBookingDay } from "@/lib/booking/validation";
 import {
   formatRussianDate,
   generateAvailableSlots,
@@ -40,6 +41,12 @@ interface BookingWizardProps {
 }
 
 function getBookingErrorMessage(code: string | undefined): string {
+  if (code === "PAST_DATE") {
+    return "Нельзя записаться на прошедшее время.";
+  }
+  if (code === "INVALID_DATE") {
+    return "Передана некорректная дата записи.";
+  }
   if (code === "23505") {
     return "Этот слот только что заняли. Пожалуйста, выберите другое время.";
   }
@@ -129,6 +136,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
 
   const selectedService = services.find((service) => service.id === serviceId);
   const selectedSpecialist = specialists.find((specialist) => specialist.id === specialistId);
+  const isPastDay = useMemo(() => isPastBookingDay(selectedDate), [selectedDate]);
   const { appointments, loading: appointmentsLoading, refetch: refetchAppointments } = useAppointments({
     specialistId,
     branchId: branch.id,
@@ -157,7 +165,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
   }, [specialistId, specialists]);
 
   const slotsForDay = useMemo(() => {
-    if (!selectedService || !specialistId) {
+    if (!selectedService || !specialistId || isPastDay) {
       return [];
     }
 
@@ -171,7 +179,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
       dayAppointments,
       selectedDaySchedule
     );
-  }, [appointments, selectedDate, selectedDaySchedule, selectedService, specialistId]);
+  }, [appointments, isPastDay, selectedDate, selectedDaySchedule, selectedService, specialistId]);
 
   const createBooking = async () => {
     if (!selectedService || !selectedSpecialist || !selectedTime || !name.trim()) {
@@ -371,6 +379,10 @@ export function BookingWizard({ branch }: BookingWizardProps) {
                 <div key={index} className="h-12 rounded-2xl bg-slate-100" />
               ))}
             </div>
+          ) : isPastDay ? (
+            <div className="mt-4 rounded-2xl bg-canvas px-4 py-6 text-center text-sm text-muted">
+              Запись на прошедшую дату недоступна. Выберите сегодняшний или будущий день.
+            </div>
           ) : !selectedDaySchedule.is_working_day ? (
             <div className="mt-4 rounded-2xl bg-canvas px-4 py-6 text-center text-sm text-muted">
               На выбранный день запись недоступна. Специалист не работает.
@@ -408,7 +420,9 @@ export function BookingWizard({ branch }: BookingWizardProps) {
           <button
             type="button"
             onClick={() => {
-              if (selectedTime) {
+              if (isPastDay) {
+                setError("Выберите сегодняшний или будущий день.");
+              } else if (selectedTime) {
                 setStep(3);
                 setError(null);
               } else {
