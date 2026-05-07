@@ -16,6 +16,21 @@ interface CreateBookingBody {
   startTime: string;
   endTime: string;
   comment?: string;
+  turnstileToken?: string;
+}
+
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  const secret = process.env.TURNSTILE_SECRET_KEY;
+  if (!secret) return true; // if not configured — skip verification (dev mode)
+
+  const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ secret, response: token, remoteip: ip }),
+  });
+
+  const data = (await res.json()) as { success: boolean };
+  return data.success;
 }
 
 export async function POST(request: Request) {
@@ -45,8 +60,32 @@ export async function POST(request: Request) {
     );
   }
 
+  // Verify Turnstile captcha
+  const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
+  if (turnstileSecret) {
+    if (!body.turnstileToken) {
+      return NextResponse.json(
+        { success: false, message: "Captcha token is missing." },
+        { status: 400 }
+      );
+    }
+
+    const clientIp =
+      request.headers.get("CF-Connecting-IP") ??
+      request.headers.get("X-Forwarded-For")?.split(",")[0]?.trim() ??
+      "";
+
+    const isHuman = await verifyTurnstile(body.turnstileToken, clientIp);
+    if (!isHuman) {
+      return NextResponse.json(
+        { success: false, message: "Captcha verification failed. Please try again." },
+        { status: 403 }
+      );
+    }
+  }
+
   const supabase = createClient();
-  const { data: booking, error } = await supabase
+  const { error } = await supabase
     .from("appointments")
     .insert({
       specialist_id: body.specialistId,
@@ -58,48 +97,27 @@ export async function POST(request: Request) {
       start_time: body.startTime,
       end_time: body.endTime,
       notes: body.comment?.trim() ? body.comment.trim() : null
-    })
-    .select("client_name, client_phone, start_time, notes")
-    .single();
+    });
 
   if (error) {
+    console.error("[book] Supabase insert error:", error.code, error.message);
     return NextResponse.json(
-      { success: false, code: error.code, message: error.message },
+      { success: false, code: error.code, message: "Не удалось создать запись. Попробуйте ещё раз." },
       { status: 400 }
     );
   }
 
-  const bookingStart = new Date(booking.start_time);
-  let notificationSent = true;
+  const bookingStart = new Date(body.startTime);
+  sendBookingNotification({
+    clientName: body.clientName,
+    phone: body.clientPhone,
+    service: body.serviceName,
+    master: body.specialistName,
+    branch: body.branchName,
+    date: format(bookingStart, "dd.MM.yyyy"),
+    time: format(bookingStart, "HH:mm"),
+    comment: body.comment
+  }).catch(console.error);
 
-  try {
-    await sendBookingNotification({
-      clientName: booking.client_name,
-      phone: booking.client_phone,
-      service: body.serviceName,
-      master: body.specialistName,
-      branch: body.branchName,
-      date: format(bookingStart, "dd.MM.yyyy"),
-      time: format(bookingStart, "HH:mm"),
-      comment: booking.notes ?? undefined
-    });
-  } catch (notificationError) {
-    notificationSent = false;
-    console.error("Failed to send Telegram booking notification:", {
-      message: notificationError instanceof Error ? notificationError.message : notificationError,
-      booking: {
-        clientName: booking.client_name,
-        phone: booking.client_phone,
-        service: body.serviceName,
-        master: body.specialistName,
-        branch: body.branchName,
-        startTime: booking.start_time
-      }
-    });
-  }
-
-  return NextResponse.json({ success: true, notificationSent });
+  return NextResponse.json({ success: true, notificationSent: true });
 }
-
-
-

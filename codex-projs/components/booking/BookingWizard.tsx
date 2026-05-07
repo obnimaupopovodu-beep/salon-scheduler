@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, format, isSameDay, subDays } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { WeekSwitcher } from "@/components/calendar/WeekSwitcher";
 import { useAppointments } from "@/hooks/useAppointments";
@@ -16,6 +16,24 @@ import {
   normalizePhone
 } from "@/lib/utils";
 import type { Branch } from "@/types";
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: {
+        sitekey: string;
+        callback: (token: string) => void;
+        "expired-callback": () => void;
+        "error-callback": () => void;
+        theme?: "light" | "dark" | "auto";
+      }) => string;
+      reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
+    };
+  }
+}
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 interface BookingWizardProps {
   branch: Branch;
@@ -54,6 +72,60 @@ export function BookingWizard({ branch }: BookingWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Turnstile
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const turnstileWidgetId = useRef<string | null>(null);
+  const turnstileScriptLoaded = useRef(false);
+
+  const resetTurnstile = useCallback(() => {
+    setTurnstileToken(null);
+    if (turnstileWidgetId.current && window.turnstile) {
+      window.turnstile.reset(turnstileWidgetId.current);
+    }
+  }, []);
+
+  // Load Turnstile script and render widget when step 3 is shown
+  useEffect(() => {
+    if (step !== 3 || !TURNSTILE_SITE_KEY) return;
+
+    const renderWidget = () => {
+      if (!turnstileContainerRef.current || !window.turnstile) return;
+      // Remove previous widget if any
+      if (turnstileWidgetId.current) {
+        try { window.turnstile.remove(turnstileWidgetId.current); } catch { /* ignore */ }
+        turnstileWidgetId.current = null;
+      }
+      turnstileWidgetId.current = window.turnstile.render(turnstileContainerRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (token: string) => setTurnstileToken(token),
+        "expired-callback": resetTurnstile,
+        "error-callback": resetTurnstile,
+        theme: "light",
+      });
+    };
+
+    if (window.turnstile) {
+      renderWidget();
+    } else if (!turnstileScriptLoaded.current) {
+      turnstileScriptLoaded.current = true;
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+      script.async = true;
+      script.defer = true;
+      script.onload = renderWidget;
+      document.head.appendChild(script);
+    }
+
+    return () => {
+      if (turnstileWidgetId.current && window.turnstile) {
+        try { window.turnstile.remove(turnstileWidgetId.current); } catch { /* ignore */ }
+        turnstileWidgetId.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const selectedService = services.find((service) => service.id === serviceId);
   const selectedSpecialist = specialists.find((specialist) => specialist.id === specialistId);
@@ -112,8 +184,12 @@ export function BookingWizard({ branch }: BookingWizardProps) {
       return;
     }
 
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError("Пожалуйста, пройдите проверку капчи.");
+      return;
+    }
+
     setSubmitting(true);
-    
     setError(null);
 
     const start = new Date(selectedTime);
@@ -135,7 +211,8 @@ export function BookingWizard({ branch }: BookingWizardProps) {
         clientName: name.trim(),
         clientPhone: normalizedPhone,
         startTime: start.toISOString(),
-        endTime: end.toISOString()
+        endTime: end.toISOString(),
+        turnstileToken
       })
     });
 
@@ -146,6 +223,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
       const userMessage = getBookingErrorMessage(insertError.code);
       setError(userMessage);
       setSubmitting(false);
+      resetTurnstile();
 
       // Slot was taken — refresh appointments so UI shows the updated availability
       if (insertError.code === "23505" || insertError.code === "23P01") {
@@ -367,6 +445,15 @@ export function BookingWizard({ branch }: BookingWizardProps) {
             />
           </label>
 
+          {/* Cloudflare Turnstile widget */}
+          {TURNSTILE_SITE_KEY ? (
+            <div
+              ref={turnstileContainerRef}
+              className="flex justify-center"
+              aria-label="Проверка безопасности"
+            />
+          ) : null}
+
           <div className="flex gap-3">
             <button
               type="button"
@@ -380,7 +467,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
               onClick={() => {
                 void createBooking();
               }}
-              disabled={submitting}
+              disabled={submitting || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
               className="flex-1 rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
               {submitting ? "Отправляем..." : "Записаться"}
