@@ -7,9 +7,11 @@ import type { Specialist } from "@/types";
 
 interface UseSpecialistsOptions {
   branchId?: string;
+  /** When provided, returns only specialists assigned to this service */
+  serviceId?: string;
 }
 
-export function useSpecialists({ branchId }: UseSpecialistsOptions = {}) {
+export function useSpecialists({ branchId, serviceId }: UseSpecialistsOptions = {}) {
   const supabase = useSupabase();
   const [specialists, setSpecialists] = useState<Specialist[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,10 +25,18 @@ export function useSpecialists({ branchId }: UseSpecialistsOptions = {}) {
     setLoading(true);
     setError(null);
 
-    const { data, error: fetchError } = await supabase
-      .from("specialists")
-      .select("*")
-      .order("created_at", { ascending: true });
+    const query = serviceId
+      ? supabase
+          .from("specialists")
+          .select("*, specialist_services!inner(service_id)")
+          .eq("specialist_services.service_id", serviceId)
+          .order("created_at", { ascending: true })
+      : supabase
+          .from("specialists")
+          .select("*")
+          .order("created_at", { ascending: true });
+
+    const { data, error: fetchError } = await query;
 
     if (requestIdRef.current !== requestId) {
       return;
@@ -36,11 +46,15 @@ export function useSpecialists({ branchId }: UseSpecialistsOptions = {}) {
       setError(fetchError.message);
       setSpecialists([]);
     } else {
-      setSpecialists((data as Specialist[]) ?? []);
+      // Strip joined specialist_services — keep only Specialist fields
+      const cleaned = ((data ?? []) as (Specialist & { specialist_services?: unknown })[]).map(
+        ({ specialist_services: _ss, ...sp }) => sp as Specialist
+      );
+      setSpecialists(cleaned);
     }
 
     setLoading(false);
-  }, [branchId, supabase]);
+  }, [branchId, serviceId, supabase]);
 
   useEffect(() => {
     void refetch();

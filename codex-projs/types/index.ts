@@ -26,6 +26,13 @@ export interface Service {
   price: number;
   duration_minutes: number;
   created_at: string;
+  /** Populated on the client-side from specialist_services join — not stored in DB */
+  specialist_ids?: string[];
+}
+
+export interface SpecialistService {
+  specialist_id: string;
+  service_id: string;
 }
 
 export interface Client {

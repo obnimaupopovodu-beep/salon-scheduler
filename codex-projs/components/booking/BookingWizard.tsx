@@ -41,37 +41,34 @@ interface BookingWizardProps {
 }
 
 function getBookingErrorMessage(code: string | undefined): string {
-  if (code === "PAST_DATE") {
-    return "Нельзя записаться на прошедшее время.";
-  }
-  if (code === "INVALID_DATE") {
-    return "Передана некорректная дата записи.";
-  }
-  if (code === "23505") {
-    return "Этот слот только что заняли. Пожалуйста, выберите другое время.";
-  }
-  if (code === "23P01") {
-    return "Выбранное время пересекается с уже существующей записью. Пожалуйста, выберите другой слот.";
-  }
+  if (code === "PAST_DATE") return "Нельзя записаться на прошедшее время.";
+  if (code === "INVALID_DATE") return "Передана некорректная дата записи.";
+  if (code === "23505") return "Этот слот только что заняли. Пожалуйста, выберите другое время.";
+  if (code === "23P01") return "Выбранное время пересекается с уже существующей записью. Пожалуйста, выберите другой слот.";
   return "Не удалось создать запись. Попробуйте ещё раз.";
 }
 
+/**
+ * Booking flow:
+ *   Step 1 — choose a service (all services, no filter)
+ *   Step 2 — choose a specialist (filtered by selected service)
+ *   Step 3 — choose date & time
+ *   Step 4 — enter contact info & submit
+ */
 export function BookingWizard({ branch }: BookingWizardProps) {
   const isOnline = useOnlineStatus();
-  const {
-    specialists,
-    loading: specialistsLoading,
-    error: specialistsError
-  } = useSpecialists();
+
+  // Step 1: all services (no specialist filter)
   const {
     groupedServices,
     services,
     loading: servicesLoading,
     error: servicesError
   } = useServices();
+
   const [step, setStep] = useState(1);
-  const [specialistId, setSpecialistId] = useState("");
   const [serviceId, setServiceId] = useState("");
+  const [specialistId, setSpecialistId] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -79,6 +76,13 @@ export function BookingWizard({ branch }: BookingWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Step 2: specialists filtered by chosen service
+  const {
+    specialists,
+    loading: specialistsLoading,
+    error: specialistsError
+  } = useSpecialists({ serviceId: serviceId || undefined });
 
   // Turnstile
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -93,13 +97,12 @@ export function BookingWizard({ branch }: BookingWizardProps) {
     }
   }, []);
 
-  // Load Turnstile script and render widget when step 3 is shown
+  // Load Turnstile script when step 4 is shown
   useEffect(() => {
-    if (step !== 3 || !TURNSTILE_SITE_KEY) return;
+    if (step !== 4 || !TURNSTILE_SITE_KEY) return;
 
     const renderWidget = () => {
       if (!turnstileContainerRef.current || !window.turnstile) return;
-      // Remove previous widget if any
       if (turnstileWidgetId.current) {
         try { window.turnstile.remove(turnstileWidgetId.current); } catch { /* ignore */ }
         turnstileWidgetId.current = null;
@@ -134,9 +137,10 @@ export function BookingWizard({ branch }: BookingWizardProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  const selectedService = services.find((service) => service.id === serviceId);
-  const selectedSpecialist = specialists.find((specialist) => specialist.id === specialistId);
+  const selectedService = services.find((s) => s.id === serviceId);
+  const selectedSpecialist = specialists.find((s) => s.id === specialistId);
   const isPastDay = useMemo(() => isPastBookingDay(selectedDate), [selectedDate]);
+
   const { appointments, loading: appointmentsLoading, refetch: refetchAppointments } = useAppointments({
     specialistId,
     branchId: branch.id,
@@ -154,25 +158,31 @@ export function BookingWizard({ branch }: BookingWizardProps) {
     [getScheduleForDate, selectedDate]
   );
 
+  // Reset downstream selections when user goes back
+  const goToStep1 = () => {
+    setSpecialistId("");
+    setSelectedDate(new Date());
+    setSelectedTime(null);
+    setError(null);
+    setStep(1);
+  };
+
+  const goToStep2 = () => {
+    setSelectedDate(new Date());
+    setSelectedTime(null);
+    setError(null);
+    setStep(2);
+  };
+
   useEffect(() => {
     setSelectedTime(null);
   }, [selectedDate, serviceId, specialistId]);
 
-  useEffect(() => {
-    if (!specialists.some((specialist) => specialist.id === specialistId)) {
-      setSpecialistId("");
-    }
-  }, [specialistId, specialists]);
-
   const slotsForDay = useMemo(() => {
-    if (!selectedService || !specialistId || isPastDay) {
-      return [];
-    }
-
-    const dayAppointments = appointments.filter((appointment) =>
-      isSameDay(new Date(appointment.start_time), selectedDate)
+    if (!selectedService || !specialistId || isPastDay) return [];
+    const dayAppointments = appointments.filter((a) =>
+      isSameDay(new Date(a.start_time), selectedDate)
     );
-
     return generateAvailableSlots(
       selectedDate,
       selectedService.duration_minutes,
@@ -186,12 +196,10 @@ export function BookingWizard({ branch }: BookingWizardProps) {
       setError("Заполните все обязательные поля.");
       return;
     }
-
     if (!isValidPhone(phone)) {
       setError("Введите телефон в формате +XXXXXXXXXXX.");
       return;
     }
-
     if (TURNSTILE_SITE_KEY && !turnstileToken) {
       setError("Пожалуйста, пройдите проверку капчи.");
       return;
@@ -206,9 +214,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
 
     const response = await fetch("/api/book", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         specialistId: selectedSpecialist.id,
         branchId: branch.id,
@@ -228,25 +234,18 @@ export function BookingWizard({ branch }: BookingWizardProps) {
     const insertError = response.ok ? null : { code: payload.code, message: payload.message };
 
     if (insertError) {
-      const userMessage = getBookingErrorMessage(insertError.code);
-      setError(userMessage);
+      setError(getBookingErrorMessage(insertError.code));
       setSubmitting(false);
       resetTurnstile();
-
-      // Slot was taken — refresh appointments so UI shows the updated availability
       if (insertError.code === "23505" || insertError.code === "23P01") {
         setSelectedTime(null);
         await refetchAppointments();
       }
-
       return;
     }
 
     setSuccess(
-      `Вы записаны! ${selectedService.name} ${formatRussianDate(start, "dd MMMM")} ${format(
-        start,
-        "HH:mm"
-      )} с ${selectedSpecialist.name}`
+      `Вы записаны! ${selectedService.name} ${formatRussianDate(start, "dd MMMM")} ${format(start, "HH:mm")} с ${selectedSpecialist.name}`
     );
     setSubmitting(false);
   };
@@ -274,74 +273,62 @@ export function BookingWizard({ branch }: BookingWizardProps) {
         </div>
       ) : null}
 
+      {/* Progress bar — 4 steps */}
       <div className="mb-6 flex items-center gap-2">
-        {[1, 2, 3].map((item) => (
+        {[1, 2, 3, 4].map((item) => (
           <div
             key={item}
-            className={`h-2 flex-1 rounded-full ${item <= step ? "bg-accent" : "bg-slate-200"}`}
+            className={`h-2 flex-1 rounded-full ${
+              item <= step ? "bg-accent" : "bg-slate-200"
+            }`}
           />
         ))}
       </div>
 
-      {(specialistsLoading || servicesLoading) && step === 1 ? (
-        <div className="space-y-3 animate-pulse">
-          <div className="h-14 rounded-2xl bg-slate-100" />
-          <div className="h-14 rounded-2xl bg-slate-100" />
-        </div>
-      ) : null}
-
+      {/* ── Step 1: choose service ── */}
       {step === 1 ? (
         <div className="space-y-4">
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-ink">Выберите специалиста</span>
-            <select
-              value={specialistId}
-              onChange={(event) => setSpecialistId(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
-            >
-              <option value="">Выберите специалиста</option>
-              {specialists.map((specialist) => (
-                <option key={specialist.id} value={specialist.id}>
-                  {specialist.name}
-                </option>
-              ))}
-            </select>
-            {!specialistsLoading && !specialists.length ? (
-              <span className="mt-1 block text-sm text-muted">Специалисты пока недоступны.</span>
-            ) : null}
-          </label>
+          <h2 className="text-lg font-semibold text-ink">Выберите услугу</h2>
 
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-ink">Выберите услугу</span>
-            <select
-              value={serviceId}
-              onChange={(event) => setServiceId(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
-            >
-              <option value="">Выберите услугу</option>
-              {groupedServices.map((group) => (
-                <optgroup key={group.category.id} label={group.category.name}>
-                  {group.services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name} ({service.duration_minutes} мин - {service.price} ₽)
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            {!servicesLoading && !services.length ? (
-              <span className="mt-1 block text-sm text-muted">Услуги пока недоступны.</span>
-            ) : null}
-          </label>
+          {servicesLoading ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-14 rounded-2xl bg-slate-100" />
+              <div className="h-14 rounded-2xl bg-slate-100" />
+            </div>
+          ) : (
+            <>
+              <select
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
+                className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
+              >
+                <option value="">Выберите услугу</option>
+                {groupedServices.map((group) => (
+                  <optgroup key={group.category.id} label={group.category.name}>
+                    {group.services.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name} ({service.duration_minutes} мин · {service.price} ₽)
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+
+              {!services.length ? (
+                <p className="text-sm text-muted">Услуги пока недоступны.</p>
+              ) : null}
+            </>
+          )}
 
           <button
             type="button"
             onClick={() => {
-              if (specialistId && serviceId) {
-                setStep(2);
+              if (serviceId) {
+                setSpecialistId("");
                 setError(null);
+                setStep(2);
               } else {
-                setError("Сначала выберите специалиста и услугу.");
+                setError("Сначала выберите услугу.");
               }
             }}
             className="w-full rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white"
@@ -351,13 +338,66 @@ export function BookingWizard({ branch }: BookingWizardProps) {
         </div>
       ) : null}
 
+      {/* ── Step 2: choose specialist (filtered by service) ── */}
       {step === 2 ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-ink">Выберите специалиста</h2>
+            <button type="button" onClick={goToStep1} className="text-sm font-medium text-muted">
+              Назад
+            </button>
+          </div>
+
+          {specialistsLoading ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-14 rounded-2xl bg-slate-100" />
+              <div className="h-14 rounded-2xl bg-slate-100" />
+            </div>
+          ) : specialists.length === 0 ? (
+            <div className="rounded-2xl bg-canvas px-4 py-8 text-center text-sm text-muted">
+              Для этой услуги пока нет доступных специалистов.
+            </div>
+          ) : (
+            <select
+              value={specialistId}
+              onChange={(e) => setSpecialistId(e.target.value)}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
+            >
+              <option value="">Выберите специалиста</option>
+              {specialists.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              if (specialistId) {
+                goToStep2();
+                setStep(3);
+              } else {
+                setError("Сначала выберите специалиста.");
+              }
+            }}
+            disabled={specialists.length === 0}
+            className="w-full rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            Далее
+          </button>
+        </div>
+      ) : null}
+
+      {/* ── Step 3: choose date & time ── */}
+      {step === 3 ? (
         <div>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-ink">Выберите дату и время</h2>
             <button
               type="button"
-              onClick={() => setStep(1)}
+              onClick={() => { setError(null); setStep(2); }}
               className="text-sm font-medium text-muted"
             >
               Назад
@@ -368,15 +408,15 @@ export function BookingWizard({ branch }: BookingWizardProps) {
             <WeekSwitcher
               selectedDate={selectedDate}
               onSelectDate={setSelectedDate}
-              onPreviousWeek={() => setSelectedDate((current) => subDays(current, 7))}
-              onNextWeek={() => setSelectedDate((current) => addDays(current, 7))}
+              onPreviousWeek={() => setSelectedDate((d) => subDays(d, 7))}
+              onNextWeek={() => setSelectedDate((d) => addDays(d, 7))}
             />
           </div>
 
           {appointmentsLoading || schedulesLoading ? (
             <div className="mt-4 grid grid-cols-2 gap-3 animate-pulse">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <div key={index} className="h-12 rounded-2xl bg-slate-100" />
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-12 rounded-2xl bg-slate-100" />
               ))}
             </div>
           ) : isPastDay ? (
@@ -392,7 +432,6 @@ export function BookingWizard({ branch }: BookingWizardProps) {
               {slotsForDay.map((slot) => {
                 const value = slot.toISOString();
                 const active = selectedTime === value;
-
                 return (
                   <button
                     key={value}
@@ -408,7 +447,6 @@ export function BookingWizard({ branch }: BookingWizardProps) {
                   </button>
                 );
               })}
-
               {!slotsForDay.length ? (
                 <p className="col-span-2 rounded-2xl bg-canvas px-4 py-6 text-center text-sm text-muted">
                   Нет свободных слотов на выбранный день.
@@ -423,7 +461,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
               if (isPastDay) {
                 setError("Выберите сегодняшний или будущий день.");
               } else if (selectedTime) {
-                setStep(3);
+                setStep(4);
                 setError(null);
               } else {
                 setError("Выберите свободный слот.");
@@ -436,7 +474,8 @@ export function BookingWizard({ branch }: BookingWizardProps) {
         </div>
       ) : null}
 
-      {step === 3 ? (
+      {/* ── Step 4: contact info & submit ── */}
+      {step === 4 ? (
         <div className="space-y-4">
           <h2 className="text-lg font-semibold text-ink">Контактные данные</h2>
           <label className="block">
@@ -444,7 +483,7 @@ export function BookingWizard({ branch }: BookingWizardProps) {
             <input
               type="text"
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(e) => setName(e.target.value)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
             />
           </label>
@@ -454,12 +493,11 @@ export function BookingWizard({ branch }: BookingWizardProps) {
             <input
               type="tel"
               value={phone}
-              onChange={(event) => setPhone(event.target.value)}
+              onChange={(e) => setPhone(e.target.value)}
               className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-accent"
             />
           </label>
 
-          {/* Cloudflare Turnstile widget */}
           {TURNSTILE_SITE_KEY ? (
             <div
               ref={turnstileContainerRef}
@@ -471,16 +509,14 @@ export function BookingWizard({ branch }: BookingWizardProps) {
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setStep(2)}
+              onClick={() => { setError(null); setStep(3); }}
               className="flex-1 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-ink"
             >
               Назад
             </button>
             <button
               type="button"
-              onClick={() => {
-                void createBooking();
-              }}
+              onClick={() => { void createBooking(); }}
               disabled={submitting || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
               className="flex-1 rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
