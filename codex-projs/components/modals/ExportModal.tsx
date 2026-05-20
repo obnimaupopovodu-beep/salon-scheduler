@@ -3,11 +3,24 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { useSupabase } from "@/components/providers/SupabaseProvider";
-import type { AppointmentWithRelations, Client } from "@/types";
+import type { Client } from "@/types";
 
 interface ExportModalProps {
   open: boolean;
   onClose: () => void;
+}
+
+interface ExportAppointmentRow {
+  id: string;
+  start_time: string;
+  end_time: string;
+  client_name: string;
+  client_phone: string;
+  confirmation: 0 | 1;
+  notes: string | null;
+  created_at: string;
+  specialists: { id: string; name: string }[] | null;
+  services: { id: string; name: string; duration_minutes: number; price: number }[] | null;
 }
 
 function toInputDate(date: Date): string {
@@ -56,7 +69,6 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
     setLoading(true);
     setError(null);
 
-    // --- Fetch appointments with relations ---
     const { data: appointments, error: apptError } = await supabase
       .from("appointments")
       .select(`
@@ -81,7 +93,6 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
       return;
     }
 
-    // --- Fetch all clients ---
     const { data: clients, error: clientsError } = await supabase
       .from("clients")
       .select("id, name, phone, created_at")
@@ -93,61 +104,54 @@ export function ExportModal({ open, onClose }: ExportModalProps) {
       return;
     }
 
-    // --- Sheet 1: Appointments ---
-    const apptRows = (appointments as AppointmentWithRelations[]).map((a, idx) => ({
+    const normalizedAppointments = (appointments ?? []) as unknown as ExportAppointmentRow[];
+    const normalizedClients = (clients ?? []) as Client[];
+
+    const apptRows = normalizedAppointments.map((a, idx) => ({
       "№": idx + 1,
       "Дата и время": formatDateTime(a.start_time),
       "Окончание": formatDateTime(a.end_time),
       "Клиент": a.client_name,
       "Телефон": a.client_phone,
-      "Специалист": a.specialists?.name ?? "—",
-      "Услуга": a.services?.name ?? "—",
-      "Длительность (мин)": a.services?.duration_minutes ?? "—",
-      "Цена (₽)": a.services?.price ?? "—",
+      "Специалист": a.specialists?.[0]?.name ?? "—",
+      "Услуга": a.services?.[0]?.name ?? "—",
+      "Длительность (мин)": a.services?.[0]?.duration_minutes ?? "—",
+      "Цена (₽)": a.services?.[0]?.price ?? "—",
       "Статус": a.confirmation === 1 ? "Подтверждён" : "Ожидание",
       "Заметка": a.notes ?? "",
       "Создана": formatDateTime(a.created_at)
     }));
 
-    // --- Sheet 2: Clients ---
-    const clientRows = (clients as Client[]).map((c, idx) => ({
+    const clientRows = normalizedClients.map((c, idx) => ({
       "№": idx + 1,
       "Имя": c.name,
       "Телефон": c.phone,
       "Добавлен": formatDate(c.created_at)
     }));
 
-    // --- Build workbook ---
     const wb = XLSX.utils.book_new();
 
     const wsAppt = XLSX.utils.json_to_sheet(apptRows);
-    // Set column widths for appointments sheet
     wsAppt["!cols"] = [
-      { wch: 4 },  // №
-      { wch: 18 }, // Дата и время
-      { wch: 18 }, // Окончание
-      { wch: 22 }, // Клиент
-      { wch: 16 }, // Телефон
-      { wch: 20 }, // Специалист
-      { wch: 24 }, // Услуга
-      { wch: 18 }, // Длительность
-      { wch: 12 }, // Цена
-      { wch: 14 }, // Статус
-      { wch: 28 }, // Заметка
-      { wch: 18 }, // Создана
+      { wch: 4 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 28 },
+      { wch: 18 }
     ];
     XLSX.utils.book_append_sheet(wb, wsAppt, "Записи");
 
     const wsClients = XLSX.utils.json_to_sheet(clientRows);
-    wsClients["!cols"] = [
-      { wch: 4 },
-      { wch: 24 },
-      { wch: 16 },
-      { wch: 14 },
-    ];
+    wsClients["!cols"] = [{ wch: 4 }, { wch: 24 }, { wch: 16 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, wsClients, "Клиенты");
 
-    // --- Download ---
     const fileName = `appointments_${dateFrom}_${dateTo}.xlsx`;
     XLSX.writeFile(wb, fileName);
 
