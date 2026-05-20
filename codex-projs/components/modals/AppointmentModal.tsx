@@ -177,150 +177,162 @@ export function AppointmentModal({
   return (
     <>
       <div className="fixed inset-0 z-40 bg-slate-950/30" onClick={onClose} />
-      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-4">
-        <div className="w-full max-w-[430px] rounded-[32px] bg-card p-5 shadow-sheet transition">
-          <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base font-semibold text-ink">
-              {mode === "create" ? "Новая запись" : "Редактировать запись"}
-            </h3>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100"
-              aria-label="Закрыть"
-            >
-              <span className="text-[16px] leading-none text-muted">×</span>
-            </button>
-          </div>
 
-          <div className="mt-4">
-            <p className="mb-2 text-sm font-medium text-ink">Статус записи</p>
-            <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+      {/* Sheet container — capped at 90dvh so it never overflows the viewport */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-4">
+        <div
+          className="flex w-full max-w-[430px] flex-col rounded-[32px] bg-card shadow-sheet transition"
+          style={{ maxHeight: "90dvh" }}
+        >
+          {/* Fixed header */}
+          <div className="shrink-0 px-5 pt-5">
+            <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-base font-semibold text-ink">
+                {mode === "create" ? "Новая запись" : "Редактировать запись"}
+              </h3>
               <button
                 type="button"
-                onClick={() => setConfirmation(0)}
-                className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                  confirmation === 0 ? "bg-white text-amber-700 shadow-sm" : "text-muted"
-                }`}
+                onClick={onClose}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100"
+                aria-label="Закрыть"
               >
-                Ожидание
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmation(1)}
-                className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
-                  confirmation === 1 ? "bg-white text-accent shadow-sm" : "text-muted"
-                }`}
-              >
-                Подтвердил
+                <span className="text-[16px] leading-none text-muted">×</span>
               </button>
             </div>
           </div>
 
-          <div className="mt-4 space-y-4">
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink">Время</span>
-              <input
-                type="time"
-                value={time}
-                onChange={(event) => setTime(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
-              />
-            </label>
+          {/* Scrollable body — min-h-0 is required for overflow to work inside flex */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2">
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-medium text-ink">Статус записи</p>
+              <div className="grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setConfirmation(0)}
+                  className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                    confirmation === 0 ? "bg-white text-amber-700 shadow-sm" : "text-muted"
+                  }`}
+                >
+                  Ожидание
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmation(1)}
+                  className={`rounded-2xl px-3 py-2 text-sm font-semibold transition ${
+                    confirmation === 1 ? "bg-white text-accent shadow-sm" : "text-muted"
+                  }`}
+                >
+                  Подтвердил
+                </button>
+              </div>
+            </div>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink">Специалист</span>
-              <select
-                value={specialistId}
-                onChange={(event) => setSpecialistId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
-              >
-                {specialists.map((specialist) => (
-                  <option key={specialist.id} value={specialist.id}>
-                    {specialist.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="mt-4 space-y-4">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Время</span>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(event) => setTime(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
+                />
+              </label>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink">Услуга</span>
-              <select
-                value={serviceId}
-                onChange={(event) => setServiceId(event.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
-              >
-                {serviceGroups.map((group) => (
-                  <optgroup key={group.category.id} label={group.category.name}>
-                    {group.services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.name} ({service.duration_minutes} мин - {service.price} ₽)
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Специалист</span>
+                <select
+                  value={specialistId}
+                  onChange={(event) => setSpecialistId(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
+                >
+                  {specialists.map((specialist) => (
+                    <option key={specialist.id} value={specialist.id}>
+                      {specialist.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink">Имя клиента</span>
-              <ClientAutocomplete
-                value={clientName}
-                onChange={setClientName}
-                onSelectClient={(client) => {
-                  setClientName(client.name);
-                  setClientPhone(normalizePhone(client.phone));
-                }}
-                placeholder="Анна"
-                disabled={submitting}
-              />
-            </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Услуга</span>
+                <select
+                  value={serviceId}
+                  onChange={(event) => setServiceId(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
+                >
+                  {serviceGroups.map((group) => (
+                    <optgroup key={group.category.id} label={group.category.name}>
+                      {group.services.map((service) => (
+                        <option key={service.id} value={service.id}>
+                          {service.name} ({service.duration_minutes} мин - {service.price} ₽)
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink">Телефон клиента</span>
-              <input
-                type="tel"
-                value={clientPhone}
-                onChange={(event) => setClientPhone(normalizePhone(event.target.value))}
-                placeholder="+1234567890"
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
-              />
-            </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Имя клиента</span>
+                <ClientAutocomplete
+                  value={clientName}
+                  onChange={setClientName}
+                  onSelectClient={(client) => {
+                    setClientName(client.name);
+                    setClientPhone(normalizePhone(client.phone));
+                  }}
+                  placeholder="Анна"
+                  disabled={submitting}
+                />
+              </label>
 
-            <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink">Заметка</span>
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                rows={3}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
-              />
-            </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Телефон клиента</span>
+                <input
+                  type="tel"
+                  value={clientPhone}
+                  onChange={(event) => setClientPhone(normalizePhone(event.target.value))}
+                  placeholder="+1234567890"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-ink">Заметка</span>
+                <textarea
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={3}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-accent"
+                />
+              </label>
+            </div>
+
+            {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
           </div>
 
-          {error ? <p className="mt-3 text-sm text-red-500">{error}</p> : null}
-
-          <button
-            type="button"
-            onClick={() => {
-              void submit();
-            }}
-            disabled={submitting}
-            className="mt-5 w-full rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {submitting ? "Сохраняем..." : "Сохранить"}
-          </button>
-
-          {mode === "edit" ? (
+          {/* Fixed footer with action buttons */}
+          <div className="shrink-0 px-5 pb-5 pt-3">
             <button
               type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              className="mt-3 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-500"
+              onClick={() => { void submit(); }}
+              disabled={submitting}
+              className="w-full rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
-              Удалить запись
+              {submitting ? "Сохраняем..." : "Сохранить"}
             </button>
-          ) : null}
+
+            {mode === "edit" ? (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="mt-3 w-full rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-500"
+              >
+                Удалить запись
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -329,9 +341,7 @@ export function AppointmentModal({
         title="Удалить запись?"
         description="Это действие нельзя отменить."
         onCancel={() => setShowDeleteConfirm(false)}
-        onConfirm={() => {
-          void remove();
-        }}
+        onConfirm={() => { void remove(); }}
       />
     </>
   );
