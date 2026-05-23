@@ -11,7 +11,12 @@ import {
   isBreakOverlap,
   timeStringToMinutes
 } from "@/lib/utils";
-import type { DayScheduleWithBreaks, ScheduleBreak, Specialist } from "@/types";
+import type {
+  AppointmentWithRelations,
+  DayScheduleWithBreaks,
+  ScheduleBreak,
+  Specialist
+} from "@/types";
 
 interface DayScheduleModalProps {
   open: boolean;
@@ -19,6 +24,7 @@ interface DayScheduleModalProps {
   branchId: string;
   specialist?: Specialist | null;
   schedule?: DayScheduleWithBreaks;
+  appointments?: AppointmentWithRelations[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -30,12 +36,47 @@ function createEmptyBreak(): ScheduleBreak {
   };
 }
 
+/** Format hh:mm from ISO string */
+function toHHMM(isoString: string) {
+  return isoString.slice(11, 16);
+}
+
+function buildClipboardText(
+  appointments: AppointmentWithRelations[],
+  specialist: Specialist,
+  date: Date
+): string {
+  const dateLabel = formatRussianDate(date, "d MMMM yyyy");
+  const header = `\uD83D\uDCC5 Записи на ${dateLabel} — ${specialist.name}`;
+
+  if (!appointments.length) {
+    return `${header}\n\nЗаписей нет.`;
+  }
+
+  const sorted = [...appointments].sort(
+    (a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+  );
+
+  const lines = sorted.map((apt) => {
+    const start = toHHMM(apt.start_time);
+    const end = toHHMM(apt.end_time);
+    const service = apt.services?.name ?? "Услуга не указана";
+    const client = apt.client_name || "—";
+    const phone = apt.client_phone || "—";
+    const notes = apt.notes ? ` · \uD83D\uDCCB ${apt.notes}` : "";
+    return `${start}–${end}  ${service}  ·  ${client}  ${phone}${notes}`;
+  });
+
+  return `${header}\n\n${lines.join("\n")}`;
+}
+
 export function DayScheduleModal({
   open,
   selectedDate,
   branchId,
   specialist,
   schedule,
+  appointments = [],
   onClose,
   onSaved
 }: DayScheduleModalProps) {
@@ -50,6 +91,7 @@ export function DayScheduleModal({
   const [breaks, setBreaks] = useState<ScheduleBreak[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copyToast, setCopyToast] = useState<"idle" | "ok" | "err">("idle");
 
   useEffect(() => {
     setStartTime(baseSchedule.start_time);
@@ -62,6 +104,17 @@ export function DayScheduleModal({
   if (!open || !specialist) {
     return null;
   }
+
+  const handleCopy = async () => {
+    const text = buildClipboardText(appointments, specialist, selectedDate);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyToast("ok");
+    } catch {
+      setCopyToast("err");
+    }
+    setTimeout(() => setCopyToast("idle"), 2200);
+  };
 
   const save = async () => {
     if (isWorkingDay && timeStringToMinutes(endTime) <= timeStringToMinutes(startTime)) {
@@ -162,10 +215,61 @@ export function DayScheduleModal({
       <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-4">
         <div className="w-full max-w-[430px] rounded-[32px] bg-card p-5 shadow-sheet">
           <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200" />
-          <h3 className="text-lg font-semibold text-ink">Изменить график дня</h3>
-          <p className="mt-1 text-sm text-muted">
-            {specialist.name}, {formatRussianDate(selectedDate)}
-          </p>
+
+          {/* Header row */}
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="text-lg font-semibold text-ink">Изменить график дня</h3>
+              <p className="mt-1 text-sm text-muted">
+                {specialist.name}, {formatRussianDate(selectedDate)}
+              </p>
+            </div>
+
+            {/* Copy button */}
+            <button
+              type="button"
+              onClick={() => { void handleCopy(); }}
+              title="Скопировать записи дня"
+              aria-label="Скопировать записи дня в буфер обмена"
+              className="relative mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-muted transition hover:border-accent hover:text-accent active:scale-95"
+            >
+              {/* Icon: clipboard */}
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="2" width="6" height="4" rx="1" />
+                <path d="M9 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2h-2" />
+              </svg>
+
+              {/* Toast badge */}
+              {copyToast !== "idle" && (
+                <span
+                  className={`absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold text-white ${
+                    copyToast === "ok" ? "bg-teal-600" : "bg-red-500"
+                  }`}
+                >
+                  {copyToast === "ok" ? "Скопировано ✓" : "Ошибка"}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Appointments count hint */}
+          {appointments.length > 0 && (
+            <p className="mt-2 text-xs text-muted">
+              {appointments.length === 1
+                ? "1 запись в буфер"
+                : `${appointments.length} ${appointments.length < 5 ? "записи" : "записей"} в буфер`}
+            </p>
+          )}
 
           <div className="mt-5 space-y-4">
             <label className="block">
@@ -221,7 +325,10 @@ export function DayScheduleModal({
 
               <div className="mt-3 space-y-3">
                 {breaks.map((currentBreak, index) => (
-                  <div key={`${currentBreak.start_time}-${currentBreak.end_time}-${index}`} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+                  <div
+                    key={`${currentBreak.start_time}-${currentBreak.end_time}-${index}`}
+                    className="grid grid-cols-[1fr_1fr_auto] gap-2"
+                  >
                     <input
                       type="time"
                       value={currentBreak.start_time}
@@ -251,7 +358,9 @@ export function DayScheduleModal({
                     <button
                       type="button"
                       onClick={() =>
-                        setBreaks((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                        setBreaks((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index)
+                        )
                       }
                       className="rounded-2xl bg-white px-3 py-3 text-sm text-red-500"
                     >
@@ -281,9 +390,7 @@ export function DayScheduleModal({
             </button>
             <button
               type="button"
-              onClick={() => {
-                void save();
-              }}
+              onClick={() => { void save(); }}
               disabled={saving}
               className="rounded-2xl bg-accent px-4 py-3 text-sm font-semibold text-white disabled:opacity-60"
             >

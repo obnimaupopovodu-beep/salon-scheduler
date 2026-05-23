@@ -68,7 +68,6 @@ export default function AdminSchedulePage() {
     date: selectedDate
   });
 
-  // Day-level schedule for TimeGrid
   const {
     loading: schedulesLoading,
     refetch: refetchSchedules,
@@ -79,7 +78,6 @@ export default function AdminSchedulePage() {
     date: selectedDate
   });
 
-  // Month-level schedules for MonthCalendarSheet colour hints
   const { schedules: monthSchedules } = useDaySchedules({
     specialistId: activeSpecialistId,
     branchId: activeBranchId,
@@ -248,6 +246,7 @@ export default function AdminSchedulePage() {
         branchId={activeBranchId}
         specialist={selectedSpecialist}
         schedule={currentSchedule}
+        appointments={appointments}
         onClose={() => setScheduleModalOpen(false)}
         onSaved={() => {
           void refetchSchedules();
