@@ -7,6 +7,7 @@ import {
   formatDateKey,
   getDefaultDaySchedule,
   getDayRange,
+  getMonthRange,
   getWeekRange
 } from "@/lib/utils";
 import type { DaySchedule, DayScheduleWithBreaks, ScheduleBreak } from "@/types";
@@ -15,7 +16,7 @@ interface UseDaySchedulesOptions {
   specialistId?: string | null;
   branchId?: string;
   date: Date;
-  mode?: "day" | "week";
+  mode?: "day" | "week" | "month";
 }
 
 export function useDaySchedules({
@@ -30,10 +31,11 @@ export function useDaySchedules({
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
 
-  const range = useMemo(
-    () => (mode === "day" ? getDayRange(date) : getWeekRange(date)),
-    [date, mode]
-  );
+  const range = useMemo(() => {
+    if (mode === "month") return getMonthRange(date);
+    if (mode === "week") return getWeekRange(date);
+    return getDayRange(date);
+  }, [date, mode]);
 
   const refetch = useCallback(async () => {
     const requestId = requestIdRef.current + 1;

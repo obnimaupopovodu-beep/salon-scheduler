@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { TimeGrid } from "@/components/calendar/TimeGrid";
 import { WeekSwitcher } from "@/components/calendar/WeekSwitcher";
+import { MonthCalendarSheet } from "@/components/calendar/MonthCalendarSheet";
 import { AppointmentModal } from "@/components/modals/AppointmentModal";
 import { DayScheduleModal } from "@/components/modals/DayScheduleModal";
 import { useAppointments } from "@/hooks/useAppointments";
@@ -21,6 +22,7 @@ export default function AdminSchedulePage() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [activeBranchId, setActiveBranchId] = useState<string>("");
   const [activeSpecialistId, setActiveSpecialistId] = useState<string>("");
+  const [monthSheetOpen, setMonthSheetOpen] = useState(false);
   const { branches, loading: branchesLoading } = useBranches();
   const { specialists, loading: specialistsLoading } = useSpecialists();
   const { groupedServices, loading: servicesLoading, refetch: refetchServices } = useServices();
@@ -65,6 +67,8 @@ export default function AdminSchedulePage() {
     branchId: activeBranchId,
     date: selectedDate
   });
+
+  // Day-level schedule for TimeGrid
   const {
     loading: schedulesLoading,
     refetch: refetchSchedules,
@@ -73,6 +77,14 @@ export default function AdminSchedulePage() {
     specialistId: activeSpecialistId,
     branchId: activeBranchId,
     date: selectedDate
+  });
+
+  // Month-level schedules for MonthCalendarSheet colour hints
+  const { schedules: monthSchedules } = useDaySchedules({
+    specialistId: activeSpecialistId,
+    branchId: activeBranchId,
+    date: selectedDate,
+    mode: "month"
   });
 
   const currentSchedule = selectedSpecialist
@@ -100,12 +112,17 @@ export default function AdminSchedulePage() {
       ) : null}
 
       <header className="flex items-center justify-between rounded-[28px] bg-white px-4 py-4 shadow-sm">
-        <div>
+        <button
+          type="button"
+          onClick={() => setMonthSheetOpen(true)}
+          className="group text-left"
+          aria-label="Открыть календарь месяца"
+        >
           <p className="text-sm text-muted">Дата</p>
-          <h1 className="text-2xl font-semibold capitalize text-ink">
+          <h1 className="text-2xl font-semibold capitalize text-ink underline-offset-4 group-hover:underline">
             {formatRussianDate(selectedDate)}
           </h1>
-        </div>
+        </button>
 
         <div className="flex flex-col items-end gap-3">
           <button
@@ -197,6 +214,17 @@ export default function AdminSchedulePage() {
           </div>
         </>
       )}
+
+      <MonthCalendarSheet
+        open={monthSheetOpen}
+        selectedDate={selectedDate}
+        schedules={monthSchedules}
+        onSelectDate={(day) => {
+          setSelectedDate(day);
+          setMonthSheetOpen(false);
+        }}
+        onClose={() => setMonthSheetOpen(false)}
+      />
 
       <AppointmentModal
         open={modalOpen}

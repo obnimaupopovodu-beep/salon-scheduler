@@ -3,12 +3,14 @@ import {
   addMinutes,
   differenceInMinutes,
   endOfDay,
+  endOfMonth,
   endOfWeek,
   format,
   isSameDay,
   parse,
   set,
   startOfDay,
+  startOfMonth,
   startOfWeek
 } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -48,6 +50,30 @@ export function getWeekRange(date: Date) {
   };
 }
 
+export function getMonthRange(date: Date) {
+  return {
+    start: startOfMonth(date),
+    end: endOfMonth(date)
+  };
+}
+
+/**
+ * Returns all calendar cells for the month grid (Mon-start).
+ * Includes leading nulls for offset and all days of the month.
+ */
+export function getMonthGridDays(date: Date): (Date | null)[] {
+  const first = startOfMonth(date);
+  const last = endOfMonth(date);
+  // 0=Sun,1=Mon,...6=Sat → convert to Mon-start offset
+  const rawDay = first.getDay();
+  const offset = rawDay === 0 ? 6 : rawDay - 1;
+  const cells: (Date | null)[] = Array.from({ length: offset }, () => null);
+  for (let d = first; d <= last; d = addDays(d, 1)) {
+    cells.push(new Date(d));
+  }
+  return cells;
+}
+
 export function getDayRange(date: Date) {
   return {
     start: startOfDay(date),
@@ -78,9 +104,7 @@ export function getInitialTimeFromDate(date: Date) {
 }
 
 export function normalizePhone(phone: string) {
-  // Оставляем + в начале, убираем пробелы, скобки, тире
   const cleaned = phone.replace(/[^\d+]/g, "");
-  // Гарантируем + в начале если есть цифры
   if (!cleaned.startsWith("+") && cleaned.length > 0) {
     return "+" + cleaned;
   }
@@ -88,7 +112,6 @@ export function normalizePhone(phone: string) {
 }
 
 export function isValidPhone(phone: string) {
-  // Минимум 7 цифр, максимум 15 (стандарт E.164)
   return /^\+\d{7,15}$/.test(normalizePhone(phone));
 }
 
@@ -195,4 +218,9 @@ export function generateAvailableSlots(
 
 export function isToday(date: Date) {
   return isSameDay(date, new Date());
+}
+
+export function isPast(date: Date) {
+  const today = startOfDay(new Date());
+  return startOfDay(date) < today;
 }
