@@ -10,11 +10,12 @@ import { AppointmentModal } from "@/components/modals/AppointmentModal";
 import { DayScheduleModal } from "@/components/modals/DayScheduleModal";
 import { useAppointments } from "@/hooks/useAppointments";
 import { useBranches } from "@/hooks/useBranches";
+import { useDayBuffer } from "@/hooks/useDayBuffer";
 import { useDaySchedules } from "@/hooks/useDaySchedules";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { useServices } from "@/hooks/useServices";
 import { useSpecialists } from "@/hooks/useSpecialists";
-import { formatRussianDate, getDefaultDaySchedule } from "@/lib/utils";
+import { formatDateKey, formatRussianDate, getDefaultDaySchedule } from "@/lib/utils";
 import type { AppointmentWithRelations } from "@/types";
 
 export default function AdminSchedulePage() {
@@ -32,21 +33,18 @@ export default function AdminSchedulePage() {
   const [editingAppointment, setEditingAppointment] =
     useState<AppointmentWithRelations | null>(null);
 
+  const { buffer: dayBuffer, copy: copyDayToBuffer } = useDayBuffer();
+
   useEffect(() => {
-    if (!activeBranchId && branches[0]) {
-      setActiveBranchId(branches[0].id);
-    }
+    if (!activeBranchId && branches[0]) setActiveBranchId(branches[0].id);
   }, [activeBranchId, branches]);
 
   useEffect(() => {
     if (!specialists.length) {
-      if (activeSpecialistId) {
-        setActiveSpecialistId("");
-      }
+      if (activeSpecialistId) setActiveSpecialistId("");
       return;
     }
-
-    if (!specialists.some((specialist) => specialist.id === activeSpecialistId)) {
+    if (!specialists.some((s) => s.id === activeSpecialistId)) {
       setActiveSpecialistId(specialists[0].id);
     }
   }, [activeSpecialistId, specialists]);
@@ -58,7 +56,7 @@ export default function AdminSchedulePage() {
   }, [activeBranchId]);
 
   const selectedSpecialist = useMemo(
-    () => specialists.find((specialist) => specialist.id === activeSpecialistId),
+    () => specialists.find((s) => s.id === activeSpecialistId),
     [activeSpecialistId, specialists]
   );
 
@@ -68,11 +66,7 @@ export default function AdminSchedulePage() {
     date: selectedDate
   });
 
-  const {
-    loading: schedulesLoading,
-    refetch: refetchSchedules,
-    getScheduleForDate
-  } = useDaySchedules({
+  const { loading: schedulesLoading, refetch: refetchSchedules, getScheduleForDate } = useDaySchedules({
     specialistId: activeSpecialistId,
     branchId: activeBranchId,
     date: selectedDate
@@ -103,19 +97,15 @@ export default function AdminSchedulePage() {
 
   return (
     <div className="space-y-4">
-      {!isOnline ? (
+      {!isOnline && (
         <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
           Нет подключения к интернету. Последние данные могут быть устаревшими.
         </div>
-      ) : null}
+      )}
 
       <header className="flex items-center justify-between rounded-[28px] bg-white px-4 py-4 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setMonthSheetOpen(true)}
-          className="group text-left"
-          aria-label="Открыть календарь месяца"
-        >
+        <button type="button" onClick={() => setMonthSheetOpen(true)}
+          className="group text-left" aria-label="Открыть календарь месяца">
           <p className="text-sm text-muted">Дата</p>
           <h1 className="text-2xl font-semibold capitalize text-ink underline-offset-4 group-hover:underline">
             {formatRussianDate(selectedDate)}
@@ -123,69 +113,43 @@ export default function AdminSchedulePage() {
         </button>
 
         <div className="flex flex-col items-end gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              const today = new Date();
-              if (!isSameDay(selectedDate, today)) {
-                setSelectedDate(today);
-              }
-            }}
-            className="rounded-full border border-blue-600 px-3 py-1 text-sm text-blue-600"
-          >
+          <button type="button"
+            onClick={() => { const t = new Date(); if (!isSameDay(selectedDate, t)) setSelectedDate(t); }}
+            className="rounded-full border border-blue-600 px-3 py-1 text-sm text-blue-600">
             Сегодня
           </button>
-
-          <div className="flex flex-col items-end gap-3">
-            <label className="flex min-w-[150px] flex-col">
-              <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">
-                Филиал
-              </span>
-              <select
-                value={activeBranchId}
-                onChange={(event) => setActiveBranchId(event.target.value)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent"
-              >
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex min-w-[150px] flex-col">
-              <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">
-                Специалист
-              </span>
-              <select
-                value={activeSpecialistId}
-                onChange={(event) => setActiveSpecialistId(event.target.value)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent"
-              >
-                {specialists.map((specialist) => (
-                  <option key={specialist.id} value={specialist.id}>
-                    {specialist.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <label className="flex min-w-[150px] flex-col">
+            <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">Филиал</span>
+            <select value={activeBranchId} onChange={(e) => setActiveBranchId(e.target.value)}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent">
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </label>
+          <label className="flex min-w-[150px] flex-col">
+            <span className="mb-1 text-right text-xs font-medium uppercase tracking-wide text-muted">Специалист</span>
+            <select value={activeSpecialistId} onChange={(e) => setActiveSpecialistId(e.target.value)}
+              className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-ink outline-none focus:border-accent">
+              {specialists.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
         </div>
       </header>
 
-      <button
-        type="button"
-        onClick={() => setScheduleModalOpen(true)}
-        disabled={!selectedSpecialist}
-        className="w-full rounded-[28px] bg-white px-4 py-4 text-left shadow-sm disabled:opacity-60"
-      >
+      {/* Schedule button — shows buffer indicator dot if buffer is active */}
+      <button type="button" onClick={() => setScheduleModalOpen(true)} disabled={!selectedSpecialist}
+        className="relative w-full rounded-[28px] bg-white px-4 py-4 text-left shadow-sm disabled:opacity-60">
         <span className="block text-sm font-semibold text-ink">Изменить график дня</span>
         <span className="mt-1 block text-sm text-muted">
           {currentSchedule.is_working_day
             ? `${currentSchedule.start_time.slice(0, 5)} - ${currentSchedule.end_time.slice(0, 5)}, перерывов: ${currentSchedule.breaks.length}`
             : "День отмечен как нерабочий"}
         </span>
+        {dayBuffer && dayBuffer.sourceDate !== formatDateKey(selectedDate) && (
+          <span className="absolute right-4 top-4 flex items-center gap-1.5 text-xs font-medium text-accent">
+            <span className="h-2 w-2 rounded-full bg-accent" />
+            Буфер заполнен
+          </span>
+        )}
       </button>
 
       {branchesLoading || specialistsLoading || servicesLoading || appointmentsLoading || schedulesLoading ? (
@@ -195,50 +159,26 @@ export default function AdminSchedulePage() {
         </div>
       ) : (
         <>
-          <TimeGrid
-            selectedDate={selectedDate}
-            appointments={appointments}
-            schedule={currentSchedule}
-            onSelectTime={openCreateModal}
-            onSelectAppointment={openEditModal}
-          />
+          <TimeGrid selectedDate={selectedDate} appointments={appointments}
+            schedule={currentSchedule} onSelectTime={openCreateModal} onSelectAppointment={openEditModal} />
           <div className="sticky bottom-20">
-            <WeekSwitcher
-              selectedDate={selectedDate}
-              onSelectDate={setSelectedDate}
-              onPreviousWeek={() => setSelectedDate((current) => subDays(current, 7))}
-              onNextWeek={() => setSelectedDate((current) => addDays(current, 7))}
-            />
+            <WeekSwitcher selectedDate={selectedDate} onSelectDate={setSelectedDate}
+              onPreviousWeek={() => setSelectedDate((d) => subDays(d, 7))}
+              onNextWeek={() => setSelectedDate((d) => addDays(d, 7))} />
           </div>
         </>
       )}
 
-      <MonthCalendarSheet
-        open={monthSheetOpen}
-        selectedDate={selectedDate}
+      <MonthCalendarSheet open={monthSheetOpen} selectedDate={selectedDate}
         schedules={monthSchedules}
-        onSelectDate={(day) => {
-          setSelectedDate(day);
-          setMonthSheetOpen(false);
-        }}
-        onClose={() => setMonthSheetOpen(false)}
-      />
+        onSelectDate={(day) => { setSelectedDate(day); setMonthSheetOpen(false); }}
+        onClose={() => setMonthSheetOpen(false)} />
 
-      <AppointmentModal
-        open={modalOpen}
-        mode={editingAppointment ? "edit" : "create"}
-        selectedDate={modalDate}
-        selectedSpecialistId={selectedSpecialist?.id}
-        branchId={activeBranchId}
-        specialists={specialists}
-        serviceGroups={groupedServices}
-        appointment={editingAppointment}
-        onClose={() => setModalOpen(false)}
-        onSaved={() => {
-          void refetch();
-          void refetchServices();
-        }}
-      />
+      <AppointmentModal open={modalOpen} mode={editingAppointment ? "edit" : "create"}
+        selectedDate={modalDate} selectedSpecialistId={selectedSpecialist?.id}
+        branchId={activeBranchId} specialists={specialists} serviceGroups={groupedServices}
+        appointment={editingAppointment} onClose={() => setModalOpen(false)}
+        onSaved={() => { void refetch(); void refetchServices(); }} />
 
       <DayScheduleModal
         open={scheduleModalOpen}
@@ -247,10 +187,18 @@ export default function AdminSchedulePage() {
         specialist={selectedSpecialist}
         schedule={currentSchedule}
         appointments={appointments}
+        dayBuffer={dayBuffer}
         onClose={() => setScheduleModalOpen(false)}
-        onSaved={() => {
-          void refetchSchedules();
-        }}
+        onSaved={() => { void refetchSchedules(); void refetch(); }}
+        onCopyDay={() =>
+          copyDayToBuffer(
+            formatDateKey(selectedDate),
+            activeSpecialistId,
+            activeBranchId,
+            currentSchedule,
+            appointments
+          )
+        }
       />
     </div>
   );
